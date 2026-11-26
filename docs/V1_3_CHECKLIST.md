@@ -10,16 +10,16 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 02 | End-to-end initial slice in each repository | Partial | Local fixtures cover subsets. Full packaged slice remains open. |
 | 03 | Reusable standalone framework, public API and external example | Partial | Core/UI crates and external example. Full integration and target tests remain. |
 | 03 | Settings, jobs, errors, capability and engine contracts | Partial | Core interfaces exist. Jobs are cooperative and private runtime support is incomplete. |
-| 04 | Read-only signature inspection, MIME, timestamps, encoding, hex and extraction | Partial | Signature and size reporting and bounded hex/ASCII inspection exist. Rich inspection remains. |
+| 04 | Read-only signature inspection, MIME, timestamps, encoding, hex and extraction | Partial | Signature, size and filesystem timestamp reporting and bounded hex/ASCII inspection exist. Rich inspection remains. |
 | 04 | Metadata inspection, export, editing and copy-on-write sanitation | Partial | PNG chunk inspection and selective text/EXIF removal passed independent checks. Broader metadata editing remains. |
-| 04 | Catalogue, disconnected volume search, scan history and QR labels | Partial | Saved JSON inventory search works with the source disconnected. Indexed catalogues, volume identity, history and QR labels remain. |
+| 04 | Catalogue, disconnected volume search, scan history and QR labels | Partial | Saved JSON inventory search and comparison work with the source disconnected. Indexed catalogues, volume identity, history and QR labels remain. |
 | 04 | File hashes, manifest handling and PAR2 | Partial | SHA-256, SHA-512 and BLAKE3 are checked. Manifest and recovery workflows remain. |
 | 04 | Duplicate detection, usage and previewable organization | Partial | Duplicate and usage fixtures pass. Rename preview and undo remain. |
 | 04 | Safe archive listing, testing, extraction and creation | Partial | ZIP listing, integrity, single-file creation, and selected-entry extraction have Linux fixtures. Whole-archive tree operations and broader formats remain. |
 | 04 | Authenticated encryption and signature workflows | Open | Select and review existing libraries. |
 | 04 | Directional file format targets and reports | Partial | Limited format detection and JSON/CSV. Broader operation fixtures remain. |
 | 05 | Data import, native preview and schema handling | Partial | CSV, TSV, XLSX and a narrow Parquet path. Types and virtualization remain. |
-| 05 | Data transformation | Partial | Filter, select, sort, deduplicate and bounded inner joins and grouped numeric summaries have fixtures. Outer joins, wider aggregation, pivot and other transformations remain. |
+| 05 | Data transformation | Partial | Filter, select, sort, deduplicate, bounded inner joins, grouped summaries, column renaming and missing-value transforms have fixtures. Outer joins, wider aggregation, pivot and other transformations remain. |
 | 05 | Statistical methods and reproducible analysis | Partial | Numeric summaries, Pearson correlation, simple least-squares regression and bounded SQLite SELECT work on Linux fixtures. Inferential tests, intervals and broader analysis remain. |
 | 05 | Native charts and scientific export | Partial | Vector scatter and line charts exist. Plot variety and accessible raster and vector output remain. |
 | 05 | Projects, provenance, undo and batch pipelines | Partial | Version 1 single-table project replay passed tests. Authoring UI, full provenance, undo and multi-input batch remain. |
@@ -32,7 +32,7 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 06 | Document comparison, indexing and metadata | Partial | Bounded UTF-8 line comparison passed integration and CLI tests. Structural/visual comparison and indexing remain. |
 | 06 | Directional document formats and independent reader checks | Partial | Basic text, DOCX and PDF. Validate preservation and conversions independently. |
 | 07 | Local ASR, recording, media import, timestamps and batch | Partial | The Linux app-relative Whisper CLI passed an offline WAV-to-draft and SRT export fixture. Default local model, media coverage, recording and batch remain. |
-| 07 | Transcript editing, waveform, playback and projects | Partial | Text draft, validated find/replace and subtitle/JSON routes exist. Timeline, playback and projects remain. |
+| 07 | Transcript editing, waveform, playback and projects | Partial | Text drafts support find/replace, cue deletion, splitting, merging, scaling and time-range trimming. Waveform SVG and subtitle/JSON routes exist. Timeline, playback and projects remain. |
 | 07 | VAD, linguistic analysis and truthful model estimates | Open | Add verified analysis capabilities and measurable quality fixtures. |
 | 07 | Offline aligned translation | Open | Review a local backend and model licenses. |
 | 07 | Offline narration and chaptered exports | Open | Review TTS engines, voices and applicable licenses. |

@@ -117,3 +117,10 @@ At this checkpoint, 1 of the original 12 acceptance gates in section 14 of the m
 - Speech Studio `ffd61bb` adds signed SRT draft shifts and mono PCM16 WAV peak SVG export. Ten Linux headless tests, strict Clippy, and two CLI checks passed. Interactive waveform and playback remain open.
 - Document Studio `59b6c27` adds relative clockwise rotation of a selected PDF page range. Nine Linux headless tests and strict Clippy passed. Poppler confirmed that the CLI rotated only the requested page.
 - The earlier Data Studio SQL and Speech Studio portable packaging matrices have both completed with five successful targets.
+
+## Ten-operation increment
+
+- Speech Studio `13fdf0c` adds cue scaling, time-range trimming, splitting, merging and deletion with optional SRT export. Eleven Linux headless tests passed.
+- File Studio `ffd842b` adds saved inventory comparison and filesystem timestamps. Fourteen Linux headless tests passed.
+- Data Studio `964628c` adds drop-missing, fill-missing and rename-column to the direct workbench and versioned project runner. Sixteen Linux headless tests passed.
+- Strict Clippy passed in all three repositories. Hosted checks were dispatched for the three commits.
