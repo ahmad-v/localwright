@@ -8,6 +8,6 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 localwright-core = { path = "../localwright-core", version = "=0.1.0-alpha.1" }
-iced = "=0.13.1"
+iced = { version = "=0.13.1", default-features = false, features = ["tiny-skia", "fira-sans"] }
 
 futures = "=0.3.31"
