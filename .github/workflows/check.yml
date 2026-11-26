@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -36,7 +40,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify runner architecture
-        shell: bash
         env:
           EXPECTED_ARCH: ${{ matrix.arch }}
         run: test "$RUNNER_ARCH" = "$EXPECTED_ARCH"
