@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "project": "localwright",
+  "version": "0.1.0-alpha.1",
+  "verified_capabilities": [],
+  "development_routes": [
+    {
+      "operation": "settings",
+      "description": "JSON settings parse/save-new",
+      "status": "implemented-unverified",
+      "targets": [],
+      "fixture_status": "not run"
+    },
+    {
+      "operation": "jobs",
+      "description": "Single background job and cooperative cancellation",
+      "status": "implemented-unverified",
+      "targets": [],
+      "fixture_status": "not run"
+    },
+    {
+      "operation": "themes",
+      "description": "20 client-area color presets",
+      "status": "implemented-unverified",
+      "targets": [],
+      "fixture_status": "not run"
+    },
+    {
+      "operation": "figures",
+      "description": "Monochrome vector scatter SVG",
+      "status": "implemented-unverified",
+      "targets": [],
+      "fixture_status": "not run"
+    },
+    {
+      "operation": "external-consumer",
+      "description": "Independent character-count GUI example",
+      "status": "implemented-unverified",
+      "targets": [],
+      "fixture_status": "not run"
+    }
+  ]
+}

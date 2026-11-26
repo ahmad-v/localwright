@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "Please cite a verified release of this software. Provisional project-level attribution only; replace with real authors before publication."
+title: "Localwright: A Modular Rust Toolkit for Native, Cross-Platform and Offline Desktop Applications"
+type: software
+version: "0.1.0-alpha.1"
+authors:
+  - name: "Localwright project (provisional attribution)"
+license:
+  - MIT
+  - Apache-2.0
+keywords:
+  - offline
+  - desktop
+  - Rust
