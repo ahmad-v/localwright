@@ -111,3 +111,9 @@ GitHub reported five successful targets per repository at the tested baseline re
 Data Studio commit `f9a197d` passed 15 locked headless tests, formatting and strict Clippy on Rust 1.95.0. The SQL CLI matched an independent Python SQLite query. The SQL authorization fixture rejected writes, database attachment, extension loading and multiple statements. Source and test output are in Data Studio's documentation and `work/data-v13-sql-final.log`. Build Data Studio using its own pinned Rust 1.95.0 toolchain, and use the other projects' declared toolchains for their verification.
 
 At this checkpoint, 1 of the original 12 acceptance gates in section 14 of the master specification is fully verified. The exact gate is source integrity. The checklist also records 45 partially covered and 5 open active requirement groups. Group counts describe documented scope, while the 1-of-12 release gate count measures full acceptance evidence. A fresh RustSec audit of all five final lockfiles reported zero vulnerability findings, with unmaintained-dependency warnings. Native and model review, package lifecycle, cross-platform accessibility and the open feature requirements remain.
+
+## Editing increment
+
+- Speech Studio `ffd61bb` adds signed SRT draft shifts and mono PCM16 WAV peak SVG export. Ten Linux headless tests, strict Clippy, and two CLI checks passed. Interactive waveform and playback remain open.
+- Document Studio `59b6c27` adds relative clockwise rotation of a selected PDF page range. Nine Linux headless tests and strict Clippy passed. Poppler confirmed that the CLI rotated only the requested page.
+- The earlier Data Studio SQL and Speech Studio portable packaging matrices have both completed with five successful targets.
