@@ -11,17 +11,17 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 03 | Reusable standalone framework, public API and external example | Partial | Core/UI crates and external example. Full integration and target tests remain. |
 | 03 | Settings, jobs, errors, capability and engine contracts | Partial | Core interfaces exist. Jobs are cooperative and private runtime support is incomplete. |
 | 04 | Read-only signature inspection, MIME, timestamps, encoding, hex and extraction | Partial | Signature and size reporting and bounded hex/ASCII inspection exist. Rich inspection remains. |
-| 04 | Metadata inspection, export, editing and copy-on-write sanitation | Open | Implement format-specific parsing and verify residual metadata. |
-| 04 | Catalogue, disconnected volume search, scan history and QR labels | Partial | Directory inventory exists. Persistent index and volume handling remain. |
+| 04 | Metadata inspection, export, editing and copy-on-write sanitation | Partial | PNG chunk inspection and selective text/EXIF removal passed independent checks. Broader metadata editing remains. |
+| 04 | Catalogue, disconnected volume search, scan history and QR labels | Partial | Saved JSON inventory search works with the source disconnected. Indexed catalogues, volume identity, history and QR labels remain. |
 | 04 | File hashes, manifest handling and PAR2 | Partial | SHA-256, SHA-512 and BLAKE3 are checked. Manifest and recovery workflows remain. |
 | 04 | Duplicate detection, usage and previewable organization | Partial | Duplicate and usage fixtures pass. Rename preview and undo remain. |
 | 04 | Safe archive listing, testing, extraction and creation | Partial | ZIP listing, integrity, single-file creation, and selected-entry extraction have Linux fixtures. Whole-archive tree operations and broader formats remain. |
 | 04 | Authenticated encryption and signature workflows | Open | Select and review existing libraries. |
 | 04 | Directional file format targets and reports | Partial | Limited format detection and JSON/CSV. Broader operation fixtures remain. |
 | 05 | Data import, native preview and schema handling | Partial | CSV, TSV, XLSX and a narrow Parquet path. Types and virtualization remain. |
-| 05 | Data transformation | Partial | Filter, select, sort and deduplicate fixtures. Join, aggregate, pivot and other transformations remain. |
+| 05 | Data transformation | Partial | Filter, select, sort, deduplicate and bounded inner joins and grouped numeric summaries have fixtures. Outer joins, wider aggregation, pivot and other transformations remain. |
 | 05 | Statistical methods and reproducible analysis | Partial | Numeric summaries, Pearson correlation and simple least-squares regression. Inferential tests, intervals and embedded SQL remain. |
-| 05 | Native charts and scientific export | Partial | Vector scatter exists. Plot variety and accessible raster and vector output remain. |
+| 05 | Native charts and scientific export | Partial | Vector scatter and line charts exist. Plot variety and accessible raster and vector output remain. |
 | 05 | Projects, provenance, undo and batch pipelines | Partial | Version 1 single-table project replay passed tests. Authoring UI, full provenance, undo and multi-input batch remain. |
 | 05 | Data masking and pseudonymization | Partial | Fixed-mask column preview and copy export pass Linux fixtures. Broader policy rules and pseudonymization remain. |
 | 05 | Directional data formats and reports | Partial | Narrow table formats exist. Scientific and other later targets follow the specification. |
@@ -32,22 +32,22 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 06 | Document comparison, indexing and metadata | Partial | Bounded UTF-8 line comparison passed integration and CLI tests. Structural/visual comparison and indexing remain. |
 | 06 | Directional document formats and independent reader checks | Partial | Basic text, DOCX and PDF. Validate preservation and conversions independently. |
 | 07 | Local ASR, recording, media import, timestamps and batch | Partial | The Linux app-relative Whisper CLI passed an offline WAV-to-draft and SRT export fixture. Default local model, media coverage, recording and batch remain. |
-| 07 | Transcript editing, waveform, playback and projects | Partial | Text draft and subtitle routes exist. Timeline, playback and projects remain. |
+| 07 | Transcript editing, waveform, playback and projects | Partial | Text draft, validated find/replace and subtitle/JSON routes exist. Timeline, playback and projects remain. |
 | 07 | VAD, linguistic analysis and truthful model estimates | Open | Add verified analysis capabilities and measurable quality fixtures. |
 | 07 | Offline aligned translation | Open | Review a local backend and model licenses. |
 | 07 | Offline narration and chaptered exports | Open | Review TTS engines, voices and applicable licenses. |
 | 07 | Audio preparation and directional media formats | Partial | WAV preparation at four input rates and narrow subtitles have Linux fixtures. Wider codecs and independent playback verification remain. |
-| 08 | Twenty themes, appearance settings and customization | Partial | Twenty presets exist. Persistence, system theme behavior and full customization remain. |
+| 08 | Twenty themes, appearance settings and customization | Partial | Twenty presets and per-app theme and scale persistence are implemented. System theme behavior and full customization remain. |
 | 08 | Accessibility, localization and desktop input | Partial | Scale and contrast coverage exist. Screen readers, dialogs, full focus and keyboard checks remain. |
 | 09 | Scientific palettes and accessible figures | Partial | Data Studio exports shared monochrome SVG scatter and line charts. Verified palette metadata and publication controls remain. |
 | 10 | Directional capability registry and native import/export routing | Partial | Development registries and route selectors exist. Platform, engine and fixture binding remains. |
-| 10 | App-local isolated runtimes and signed or hashed offline packs | Partial | Private OCR and model files have pins. Standard package integration and clean-host checks remain. |
+| 10 | App-local isolated runtimes and signed or hashed offline packs | Partial | Linux x64 portable OCR and ASR bundles passed extracted application checks. Standard installer integration and clean-host checks remain. |
 | 11 | Input and engine isolation, limits, preservation, error recovery | Partial | Bounds and no-overwrite handling exist. Platform isolation and adversarial coverage remain. |
 | 11 | Dependency security, license inventory, SBOM and pinned CI | Partial | Lockfiles and notice tooling exist. Full current audits and package evidence remain. |
 | 12 | Five native targets, minimum versions and all package combinations | Partial | Packaging work exists. Native launch, upgrade and uninstall evidence remains incomplete. |
 | 12 | Application IDs and public distribution or signatures requiring release | Deferred | Maintainer explicitly deferred IDs and publishing. |
 | 13 | Free CI checks, platform tests, packaging, security and benchmarks | Partial | Workflows exist. Full native matrix and repeatable benchmark evidence remain. |
-| 13 | Coordinated pinned five-repository integration | Partial | All four studios pin b18f530. Local Linux checks and hosted matrix runs provide separate evidence. |
+| 13 | Coordinated pinned five-repository integration | Partial | All four studios pin 3091d10. Local Linux checks and hosted matrix runs provide separate evidence. |
 | 13 | GitLab mirrors after initial verified release and approval | Deferred | Handbook sequences this after the release and separate approval. |
 | 14 | Full source, native build and functional evidence | Partial | Linux headless checks exist. Native device evidence and complete vertical slice verification remain. |
 | 14 | Offline, isolation and safety acceptance evidence | Partial | Engine smoke fixtures exist. Complete package-level evidence remains. |
@@ -66,10 +66,10 @@ This table uses the twelve gates verbatim from section 14 as the denominator. Pl
 | Gate | State | Remaining evidence |
 |---|---|---|
 | Source integrity | Verified | The five GitHub development branches cloned cleanly, matched the master specification, resolved locked dependencies and passed Linux builds and tests. |
-| Compilation | Partial | Linux x86_64 locked builds and tests pass. Compare hosted results against each branch head and complete the Apple Silicon job. |
+| Compilation | Partial | Linux x86_64 locked all-feature checks and baseline hosted matrices exist. Confirm the latest source revisions and engine-enabled targets. |
 | Functional | Partial | Local fixture and CLI checks cover a subset of the vertical slices. Installed end-to-end workflows remain. |
 | Formats | Partial | Directional development registries and independent CLI comparisons exist. Broader operation and loss coverage remains. |
-| Isolation | Partial | App-relative OCR and ASR packs passed staged tests. Clean devices without system engines and independent uninstall remain. |
+| Isolation | Partial | App-relative OCR and ASR packs passed staged and extracted portable checks. Clean devices without system engines and independent uninstall remain. |
 | Offline/privacy | Partial | OCR and ASR socket-traced runs passed. Installed first-run and full offline processing checks remain. |
 | Safety | Partial | Collision, checksum, bounded ZIP extraction and XML tests exist. Further archive, malformed input, cancellation and platform tests remain. |
 | UI/accessibility | Partial | All four Linux workbench windows opened on the available X11 display. Keyboard, screen-reader and installed GUI coverage remain. |

@@ -37,7 +37,7 @@ The initial rebuild ran out of disk. Recent unneeded Rust build files were clear
 
 RustSec checked the five lockfiles against the cached advisory snapshot `c9f6c91`. It reported maintenance warnings for transitive dependencies, including `instant`, `pin-utils`, `rustybuzz`, `ttf-parser`, and Data Studio's `chrono` and `paste`. Check the current upstream advisory snapshot and confirm package-level native and model dependency exposure before release. No vulnerability finding was emitted for the scanned lockfiles in that snapshot. Registry metadata lookup was unavailable in the standalone audit invocation. No native security clearance or complete licensing approval follows from that run.
 
-The grouped checklist has 50 active groups, of which 44 are partial and 6 are open. Two groups are deferred. Verification is tracked separately for each fixture. These counts measure the checklist groups, which represent different amounts of work.
+The grouped checklist has 50 active groups, of which 45 are partial and 5 are open. Two groups are deferred. Verification is tracked separately for each fixture. These counts measure the checklist groups, which represent different amounts of work.
 
 ## Next source and platform work
 
@@ -49,7 +49,7 @@ The grouped checklist has 50 active groups, of which 44 are partial and 6 are op
 
 ## Coordinated integration branch
 
-The development branch on each GitHub repository is `codex/v1.3-implementation`. The four studios now pin Localwright `b18f5303ca5e7684881ccce9951cbee8b25dea82`, crate version 0.1.0, in their manifests, lockfiles, integration records and license source records. This is a Git revision pin. Registry publication remains deferred.
+The development branch on each GitHub repository is `codex/v1.3-implementation`. The four studios initially pinned Localwright `b18f5303ca5e7684881ccce9951cbee8b25dea82` and now pin `3091d10892df79b9959f49a073db34cf81c9a15e`, crate version 0.1.0, in their manifests, lockfiles, integration records and license source records. This is a Git revision pin. Registry publication remains deferred.
 
 | Repository | Changes after the initial Linux pass | Hosted validation |
 |---|---|---|
@@ -76,3 +76,28 @@ Document Studio added `quick-xml 0.42.0` (MIT) for namespace-aware parsing. Data
 Clean GitHub clones of the five feature branches resolved the locked trees and contained matching master specifications. The Linux x86_64 all-features tests and strict Clippy passed across all five repositories. Test totals were 7 in Localwright including doctests, 10 in File Studio, 12 in Data Studio, 8 in Document Studio and 7 in Speech Studio. The corresponding logs are `work/*-v13-all-features.log`.
 
 The hosted runs listed above passed on Ubuntu x64 and ARM64 and Windows x64 and ARM64. Their macOS 26 jobs were cancelled before any steps ran. The Localwright workflow retained the ARM64 assertion and switched to the GitHub-hosted macOS 15 runner for a recovery attempt. Installer lifespan, clean-device and comprehensive accessibility testing still need execution.
+
+## Continued feature work
+
+- Localwright `3091d10` added the opt-in saved-appearance API. Preferences contain only theme and scale. Invalid, unrecognized and symlinked settings are refused for reading and replacement. The four studios use their own stable key and pin this immutable revision in manifests, lockfiles and license records. The stateless shared entry point remains usable.
+- File Studio `f43a1aa` added PNG metadata inspection and selective removal of the four text/EXIF chunk types. It checks structure and CRCs and writes a new image. Pillow independently confirmed identical pixels and confirmed removal. Filtering preserves other metadata and does not anonymize images.
+- Data Studio `b7c49c6` added exact nonblank inner joins, an explicit second input, and a 32 MiB joined-text budget in addition to the table limits. Unit tests and mixed CSV/TSV CLI output passed.
+- Document Studio `3e8f603` added the Linux OCR preview assembler. The extracted bundle passed SHA-256, engine and license staging, reference text recognition and searchable PDF verification with Poppler. The assembler rejects symlinked and architecture-mismatched packs.
+- Speech Studio `d11e111` recorded successful checksum, offline transcription and SRT export from the extracted Linux x64 ASR preview. Commit `7557ab9` added validated find/replace with timestamps preserved.
+- Using `macos-15` with an ARM64 assertion resolved the hosted macOS 26 queue cancellation for Localwright. GitHub reported a full successful Localwright matrix at run [45901441847](https://github.com/ahmad-v/localwright/actions/runs/45901441847). Studio workflows have the same runner change.
+
+The 12 acceptance gates in section 14 remain the denominator for verified release readiness. Source integrity has evidence. Device, installer, accessibility, performance, broader formats, engines and application scope remain open.
+
+## Current source and CI references
+
+| Repository | Current code revision | Latest matrix |
+|---|---|---|
+| Localwright | `3091d10` | [Run 45902306178](https://github.com/ahmad-v/localwright/actions/runs/45902306178) |
+| File Studio | `b68e9b5` | [Run 45902946519](https://github.com/ahmad-v/file-studio/actions/runs/45902946519) |
+| Data Studio | `e857ca0` | [Run 45902962963](https://github.com/ahmad-v/data-studio/actions/runs/45902962963) |
+| Document Studio | `fff517e` | [Run 45902462259](https://github.com/ahmad-v/document-studio/actions/runs/45902462259) |
+| Speech Studio | `152024e` | [Run 45902470471](https://github.com/ahmad-v/speech-studio/actions/runs/45902470471) |
+
+File Studio's 12-test locked headless suite passed. The newest fixture moves the source directory away and finds the saved Unicode record from the catalog. File Studio made the already-locked `crc32fast 1.5.6` and `serde 1.0.219` direct dependencies. Data Studio's 14-test locked suite passed. Python statistics independently checked its new group summaries, including missing-value and sample SD behavior. These fixture sequences are logged in `work/file-v13-catalog-verification.log`, `work/file-v13-png-verification.log`, `work/data-v13-group-verification.log` and `work/data-v13-join-verification.log`.
+
+The mandatory next release checks include clean-device installs and removal, full accessibility testing, native engine compatibility and licensing review, and verified answers for the open functionality in the checklist. The snapshot does not satisfy the complete feature set. Application IDs and publication remain deferred.
