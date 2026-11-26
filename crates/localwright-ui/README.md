@@ -31,6 +31,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 The bundled `external_consumer` example is available in the [source repository](https://github.com/ahmad-v/localwright).
 
-Requires Rust 1.88 and a graphical desktop. On Linux, the project CI installs `libxkbcommon-dev` and `libwayland-dev`. Theme and scale settings are session-only.
+Requires Rust 1.88 and a graphical desktop. On Linux, the project CI installs `libxkbcommon-dev` and `libwayland-dev`. The basic `run` entry point keeps appearance changes in the session. Applications that want theme and scale restored on restart can use `run_with_saved_appearance(title, app_key, operations, handler)` with a stable lowercase application key. This writes only a small appearance preferences file in the user configuration directory.
 
 See the MIT and Apache-2.0 license texts and third-party notices included in this package.
