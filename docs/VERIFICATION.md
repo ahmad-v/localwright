@@ -1,7 +1,5 @@
 # Verification evidence
 
-Static checks performed on source artifacts only:
+The Linux x86_64 integration run used Rust 1.88.0. Formatting, locked all-target checking, all three unit tests, and Clippy with warnings denied passed. The independent consumer opened its native window on a virtual X11 display.
 
-- localwright: specification exact; TOML/JSON/YAML/CFF syntax, Python AST, XML/SVG/WiX well-formedness passed (not schema validation).
-
-No Rust compilation or runtime tests executed. Cargo/rustc not installed; DNS lookup of static.rust-lang.org and index.crates.io failed. CI, package builds, signing, SBOM, license and security review remain pending.
+The GitHub check workflow defines five platform jobs. Record hosted results after they run. Physical-device operation, accessibility, runtime isolation and release verification remain open.

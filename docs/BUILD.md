@@ -1,11 +1,18 @@
-# Building the alpha snapshot
+# Building Localwright
 
-Extract all five source archives into one directory as siblings. Use Rust toolchain from rust-toolchain.toml. Run `cargo generate-lockfile`, review dependency resolution, then `cargo fmt --all`, `cargo check --locked --all-targets`, `cargo test --locked`, `cargo clippy --locked --all-targets`. Run `cargo run -p localwright-ui --example external_consumer` for the independent GUI example.
+Run these commands from the repository root. Rustup selects the toolchain in `rust-toolchain.toml`.
 
-On Linux, development needs platform libraries for Iced (X11/Wayland, keyboard and graphics). CI installs candidate build dependencies. No system packages are installed by applications. 
+```sh
+cargo fmt --all -- --check
+cargo check --locked --all-targets
+cargo test --locked
+cargo clippy --locked --all-targets -- -D warnings
+```
 
-## Integration
+On Linux, install the X11 and Wayland development libraries listed in the check workflow. To launch the independent native example from a graphical session, run:
 
-Commit and tag a reviewed Localwright revision first. Ensure all consumers use that exact revision.
+```sh
+cargo run --locked -p localwright-ui --example external_consumer
+```
 
-The check workflow intentionally fails if Cargo.lock is absent. The manually dispatched bootstrap workflow produces a candidate lockfile artifact for review, never commits it. Commit reviewed lockfiles. The check gate includes formatting, so run rustfmt before first green check. No package workflow can publish a release. No default OS support versions have been validated.
+The check workflow covers the five supported build targets. Update the committed lockfile deliberately when dependencies change. Consumers should identify a reviewed Localwright revision by its full Git SHA.
