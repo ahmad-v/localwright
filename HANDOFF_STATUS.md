@@ -35,14 +35,44 @@ The initial rebuild ran out of disk. Recent unneeded Rust build files were clear
 | Document Studio | `de0963a` | Seven locked tests pass with OCR enabled. Comparison CLI produces the expected line report. Poppler independently confirmed PDF reorder. Staged private OCR produced the expected string with socket creation blocked. |
 | Speech Studio | `7892c27` | Six locked tests pass with ASR enabled. App-relative pinned model produced a two-cue draft and SRT export. The trace contained no socket activity, and truncation triggered a SHA-256 mismatch. Added 44.1 kHz input to WAV preparation. |
 
-RustSec checked the five lockfiles against the cached advisory snapshot `c9f6c91`. It reported maintenance warnings for transitive dependencies, including `instant`, `pin-utils`, `rustybuzz`, `ttf-parser`, and Data Studio's `chrono` and `paste`. Check the current upstream advisory snapshot and confirm package-level native and model dependency exposure before release. No new known vulnerability appeared in that snapshot. Registry metadata lookup was unavailable in the standalone audit invocation. No native security clearance or complete licensing approval follows from that run.
+RustSec checked the five lockfiles against the cached advisory snapshot `c9f6c91`. It reported maintenance warnings for transitive dependencies, including `instant`, `pin-utils`, `rustybuzz`, `ttf-parser`, and Data Studio's `chrono` and `paste`. Check the current upstream advisory snapshot and confirm package-level native and model dependency exposure before release. No vulnerability finding was emitted for the scanned lockfiles in that snapshot. Registry metadata lookup was unavailable in the standalone audit invocation. No native security clearance or complete licensing approval follows from that run.
 
-The grouped checklist has 50 active groups, of which 42 are partial and 8 are open. Two groups are deferred. Verification is tracked separately for each fixture. These counts measure the checklist groups, which represent different amounts of work.
+The grouped checklist has 50 active groups, of which 44 are partial and 6 are open. Two groups are deferred. Verification is tracked separately for each fixture. These counts measure the checklist groups, which represent different amounts of work.
 
 ## Next source and platform work
 
-1. Expand archive creation and extraction using explicit path, resource and collision checks. Keep extraction separate from integrity testing.
+1. Expand the verified single-file ZIP routes into safe multi-file archive creation and extraction, then cover additional formats and persistent catalogues.
 2. Complete typed data, reproducible project pipelines, SQL and inferential/statistical methods with independent reference data.
-3. Add PDF rendering and searchable PDF first. Verify a clean Office conversion runtime before adding layout-sensitive routes.
+3. Add native PDF rendering and expand searchable PDF beyond the verified single PNG route. Verify a clean Office conversion runtime before adding layout-sensitive routes.
 4. Expand media decoding, playback and local translation/TTS. Record engine and model provenance before adding a default pack.
 5. Extend shared settings and accessibility while preserving the existing consumer pins. Validate clean installers and GUI behavior on each supported device and target.
+
+## Coordinated integration branch
+
+The development branch on each GitHub repository is `codex/v1.3-implementation`. The four studios now pin Localwright `b18f5303ca5e7684881ccce9951cbee8b25dea82`, crate version 0.1.0, in their manifests, lockfiles, integration records and license source records. This is a Git revision pin. Registry publication remains deferred.
+
+| Repository | Changes after the initial Linux pass | Hosted validation |
+|---|---|---|
+| Localwright | Shared SVG line charts, tests, this handoff and its checklist | [Run](https://github.com/ahmad-v/localwright/actions/runs/45875717973) |
+| File Studio | Hex preview and one-file ZIP creation and extraction. Expanded checksum fixtures. | [Run](https://github.com/ahmad-v/file-studio/actions/runs/45876638409) |
+| Data Studio | Vector line chart through the shared renderer, fixed column masking, and versioned project replay with no-clobber output | [Run](https://github.com/ahmad-v/data-studio/actions/runs/45877790674) |
+| Document Studio | Searchable PNG-to-PDF OCR, WordprocessingML body-text extraction and matching Localwright pin | [Run](https://github.com/ahmad-v/document-studio/actions/runs/45877148067) |
+| Speech Studio | Matching Localwright pin, private ASR, 44.1 kHz preparation and JSON transcript exchange | [Run](https://github.com/ahmad-v/speech-studio/actions/runs/45877154966) |
+
+On Linux x86_64 the default-feature suites passed across all five repositories. The final File Studio archive route is tested separately with the headless fixture and a Python-generated ZIP. Data Studio's last suite passed 12 unit and integration tests, including masking, line output and declarative project replay. The latest searchable PDF smoke uses the Tesseract pack hashes in Document Studio's `docs/OCR_ENGINE.md`. Poppler confirmed the expected text and one page and provided the embedded image for an RGB byte-for-byte comparison. A second write refused the existing output.
+
+### Reproduce the offline engine fixtures
+
+- OCR: Use the staged archive in `work/tesseract-native/tesseract-5.5.0-linux-x86_64.tar.gz` or reconstruct the pack from Document Studio's engine notes. Build with `--features ocr` and the three documented SHA-256 pins. Stage `engines/tesseract` beside the built binary. Run `--cli ocr-png input.png output.txt` and `--cli ocr-png-pdf input.png output.pdf`. In the build workspace the synthetic input path is recorded under `work/ocr-engine-stage`. Use Poppler to check the text and image independently. The trace used `strace -f -e trace=socket,connect -e inject=socket:error=EACCES`.
+- ASR: Use `work/asr-verification/whisper-tiny-en.zip` and the short local `reference.wav`, or rebuild the model pack from the pinned source as in Speech Studio's notes. Build with `--features asr`, extract the pack beside the binary, and run `--cli transcribe reference.wav` with no model parameter. Read the SRT draft from the response JSON and export it through `--cli export-srt draft.srt result.srt`. A truncated model copy must fail its SHA-256 check.
+- Keep model files, recorded audio and native binaries outside Git. Retain exact upstream sources, hash pins and notices. Review release licensing and acceptance separately.
+
+The current studio commits on the integration branches are `9ba335f` (File), `6527339` (Data), `8b0af0a` (Document), and `51a9c65` (Speech). The new Document Studio DOCX CLI output matched a fixture generated and read by Python DOCX. The new Speech Studio JSON CLI round trip preserved Unicode and integer millisecond times. The File Studio headless suite passed 10 tests, Document Studio passed 8 headless tests, and Speech Studio passed 7 headless tests. All four default desktop executables opened their named native windows on the Linux X11 test display. This verifies launch on that display.
+
+Document Studio added `quick-xml 0.42.0` (MIT) for namespace-aware parsing. Data and Speech Studio made the existing pinned `serde 1.0.219` a direct dependency. After both changes, repeat RustSec JSON audits of all five lockfiles exited zero with no vulnerability findings and with unmaintained-dependency warnings. This does not inspect packaged native libraries or language/model assets.
+
+### Acceptance checkpoint
+
+Clean GitHub clones of the five feature branches resolved the locked trees and contained matching master specifications. The Linux x86_64 all-features tests and strict Clippy passed across all five repositories. Test totals were 7 in Localwright including doctests, 10 in File Studio, 12 in Data Studio, 8 in Document Studio and 7 in Speech Studio. The corresponding logs are `work/*-v13-all-features.log`.
+
+The hosted runs listed above passed on Ubuntu x64 and ARM64 and Windows x64 and ARM64. Their macOS 26 jobs were cancelled before any steps ran. The Localwright workflow retained the ARM64 assertion and switched to the GitHub-hosted macOS 15 runner for a recovery attempt. Installer lifespan, clean-device and comprehensive accessibility testing still need execution.
