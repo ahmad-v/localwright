@@ -56,3 +56,10 @@ jobs:
           cargo tree --locked
           cargo test --locked
           cargo clippy --locked --all-targets -- -D warnings
+      - name: Verify Rust documentation and crate archives
+        if: runner.os == 'Linux' && matrix.arch == 'X64'
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          cargo doc --locked --no-deps
+          bash scripts/check-crate-packages.sh
