@@ -94,10 +94,20 @@ The 12 acceptance gates in section 14 remain the denominator for verified releas
 |---|---|---|
 | Localwright | `3091d10` | [Run 45902306178](https://github.com/ahmad-v/localwright/actions/runs/45902306178) |
 | File Studio | `b68e9b5` | [Run 45902946519](https://github.com/ahmad-v/file-studio/actions/runs/45902946519) |
-| Data Studio | `e857ca0` | [Run 45902962963](https://github.com/ahmad-v/data-studio/actions/runs/45902962963) |
+| Data Studio | `f9a197d` | [Run 45904248028](https://github.com/ahmad-v/data-studio/actions/runs/45904248028) |
 | Document Studio | `fff517e` | [Run 45902462259](https://github.com/ahmad-v/document-studio/actions/runs/45902462259) |
-| Speech Studio | `152024e` | [Run 45902470471](https://github.com/ahmad-v/speech-studio/actions/runs/45902470471) |
+| Speech Studio | `cac25fb` | [Run 45904109929](https://github.com/ahmad-v/speech-studio/actions/runs/45904109929) |
 
 File Studio's 12-test locked headless suite passed. The newest fixture moves the source directory away and finds the saved Unicode record from the catalog. File Studio made the already-locked `crc32fast 1.5.6` and `serde 1.0.219` direct dependencies. Data Studio's 14-test locked suite passed. Python statistics independently checked its new group summaries, including missing-value and sample SD behavior. These fixture sequences are logged in `work/file-v13-catalog-verification.log`, `work/file-v13-png-verification.log`, `work/data-v13-group-verification.log` and `work/data-v13-join-verification.log`.
 
 The mandatory next release checks include clean-device installs and removal, full accessibility testing, native engine compatibility and licensing review, and verified answers for the open functionality in the checklist. The snapshot does not satisfy the complete feature set. Application IDs and publication remain deferred.
+
+### Latest Linux verification and native matrix boundary
+
+All four studios opened their Linux X11 windows with the stored dark appearance. The shared settings tests also verified theme and scale persistence, updates and preservation of unrecognized settings. Both the extracted Linux OCR preview and speech preview passed checksum and functional checks. The Speech Studio packager now requires an ASR binary and its model together. Local checks accepted the matching variants and refused an ASR binary without its model.
+
+GitHub reported five successful targets per repository at the tested baseline revisions. The prior Data Studio run [45902962963](https://github.com/ahmad-v/data-studio/actions/runs/45902962963) and Speech Studio run [45902470471](https://github.com/ahmad-v/speech-studio/actions/runs/45902470471) both passed all five jobs before their later SQL and packaging changes. Those changes have Linux tests and their new hosted runs are pending. In particular, Data Studio's newer SQLite route uses Rust 1.95.0 and bundled SQLite 3.54.1 to avoid the older SQLite release affected by upstream SQL-parser advisories. Keep the SQLite version tied to the bundled source in the lockfile. Release dependency review includes native advisories independently from RustSec.
+
+Data Studio commit `f9a197d` passed 15 locked headless tests, formatting and strict Clippy on Rust 1.95.0. The SQL CLI matched an independent Python SQLite query. The SQL authorization fixture rejected writes, database attachment, extension loading and multiple statements. Source and test output are in Data Studio's documentation and `work/data-v13-sql-final.log`. Build Data Studio using its own pinned Rust 1.95.0 toolchain, and use the other projects' declared toolchains for their verification.
+
+At this checkpoint, 1 of the original 12 acceptance gates in section 14 of the master specification is fully verified. The exact gate is source integrity. The checklist also records 45 partially covered and 5 open active requirement groups. Group counts describe documented scope, while the 1-of-12 release gate count measures full acceptance evidence. A fresh RustSec audit of all five final lockfiles reported zero vulnerability findings, with unmaintained-dependency warnings. Native and model review, package lifecycle, cross-platform accessibility and the open feature requirements remain.

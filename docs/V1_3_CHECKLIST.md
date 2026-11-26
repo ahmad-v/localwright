@@ -20,7 +20,7 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 04 | Directional file format targets and reports | Partial | Limited format detection and JSON/CSV. Broader operation fixtures remain. |
 | 05 | Data import, native preview and schema handling | Partial | CSV, TSV, XLSX and a narrow Parquet path. Types and virtualization remain. |
 | 05 | Data transformation | Partial | Filter, select, sort, deduplicate and bounded inner joins and grouped numeric summaries have fixtures. Outer joins, wider aggregation, pivot and other transformations remain. |
-| 05 | Statistical methods and reproducible analysis | Partial | Numeric summaries, Pearson correlation and simple least-squares regression. Inferential tests, intervals and embedded SQL remain. |
+| 05 | Statistical methods and reproducible analysis | Partial | Numeric summaries, Pearson correlation, simple least-squares regression and bounded SQLite SELECT work on Linux fixtures. Inferential tests, intervals and broader analysis remain. |
 | 05 | Native charts and scientific export | Partial | Vector scatter and line charts exist. Plot variety and accessible raster and vector output remain. |
 | 05 | Projects, provenance, undo and batch pipelines | Partial | Version 1 single-table project replay passed tests. Authoring UI, full provenance, undo and multi-input batch remain. |
 | 05 | Data masking and pseudonymization | Partial | Fixed-mask column preview and copy export pass Linux fixtures. Broader policy rules and pseudonymization remain. |
@@ -66,7 +66,7 @@ This table uses the twelve gates verbatim from section 14 as the denominator. Pl
 | Gate | State | Remaining evidence |
 |---|---|---|
 | Source integrity | Verified | The five GitHub development branches cloned cleanly, matched the master specification, resolved locked dependencies and passed Linux builds and tests. |
-| Compilation | Partial | Linux x86_64 locked all-feature checks and baseline hosted matrices exist. Confirm the latest source revisions and engine-enabled targets. |
+| Compilation | Partial | All five native baseline jobs passed per repository at tested revisions. The latest Data SQL toolchain change and engine-enabled targets outside Linux x64 still need hosted evidence. |
 | Functional | Partial | Local fixture and CLI checks cover a subset of the vertical slices. Installed end-to-end workflows remain. |
 | Formats | Partial | Directional development registries and independent CLI comparisons exist. Broader operation and loss coverage remains. |
 | Isolation | Partial | App-relative OCR and ASR packs passed staged and extracted portable checks. Clean devices without system engines and independent uninstall remain. |
