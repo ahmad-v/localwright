@@ -7,7 +7,7 @@ Alpha source is on GitHub. The Linux x86_64 build and unit tests passed during i
 | settings | JSON settings parse/save-new | Linux unit-tested |
 | jobs | Single background job and cooperative cancellation | Core cancellation unit-tested on Linux |
 | themes | 20 client-area presets, widget borders, and 80–300% UI scale | Linux contrast-tested |
-| figures | Monochrome vector scatter SVG | Linux unit-tested |
+| figures | Monochrome vector scatter and line SVG | Linux unit-tested |
 | external-consumer | Independent character-count GUI example | Linux virtual-display launch checked |
 
 ## Known gaps
