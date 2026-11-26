@@ -1,4 +1,4 @@
-//! A small native operation workbench for independently developed applications.
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 use iced::{
     theme::Palette,
@@ -349,7 +349,11 @@ fn input_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
     style
 }
 
-/// Run a native window with one bounded background operation at a time.
+/// Open the native workbench on the main thread.
+///
+/// The application runs one handler at a time on a background thread. Each
+/// handler is responsible for input limits, error handling, and checking for
+/// cancellation. An empty operation list displays the shell without a Run action.
 pub fn run(title: &'static str, ops: &'static [Operation], handler: Handler) -> iced::Result {
     iced::application(title, State::update, State::view)
         .theme(|s: &State| preset(&s.theme))

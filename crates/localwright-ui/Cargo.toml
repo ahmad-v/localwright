@@ -1,13 +1,20 @@
 [package]
 name = "localwright-ui"
-version = "0.1.0-alpha.1"
+version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Native Iced operation workbench"
 license = "MIT OR Apache-2.0"
 
+repository = "https://github.com/ahmad-v/localwright"
+documentation = "https://docs.rs/localwright-ui"
+readme = "README.md"
+keywords = ["iced", "desktop", "gui", "offline"]
+categories = ["gui"]
+include = ["src/**", "examples/**", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "THIRD_PARTY_NOTICES.md"]
+
 [dependencies]
-localwright-core = { path = "../localwright-core", version = "=0.1.0-alpha.1" }
+localwright-core = { path = "../localwright-core", version = "0.1.0" }
 iced = { version = "=0.13.1", default-features = false, features = ["tiny-skia", "fira-sans"] }
 
 futures = "=0.3.31"

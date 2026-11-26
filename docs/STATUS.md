@@ -1,4 +1,4 @@
-# Status | 0.1.0-alpha.1
+# Status | 0.1.0 publication candidate
 
 Alpha source is on GitHub. The Linux x86_64 build and unit tests passed during integration. The independent example opened a native window on a virtual X11 display.
 

@@ -1,4 +1,4 @@
-//! General-purpose contracts for offline desktop tools. No GUI or engine dependency.
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 pub mod figure;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,9 @@ use std::{
     },
 };
 
+/// Result returned by Localwright operations and helpers.
 pub type Result<T> = std::result::Result<T, Error>;
+/// A machine-readable category for an operation failure.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKind {
@@ -24,21 +26,25 @@ pub enum ErrorKind {
     Collision,
     Internal,
 }
+/// An operation failure with a category and a human-readable message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Error {
     pub kind: ErrorKind,
     pub message: String,
 }
 impl Error {
+    /// Construct an error with the given category.
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
         Self {
             kind,
             message: message.into(),
         }
     }
+    /// Report invalid or unsupported input.
     pub fn input(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Input, message)
     }
+    /// Report a processing engine failure.
     pub fn engine(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Engine, message)
     }
@@ -60,6 +66,7 @@ impl From<serde_json::Error> for Error {
     }
 }
 
+/// A description of one format and operation supported by an engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Capability {
     pub format: String,
@@ -69,6 +76,7 @@ pub struct Capability {
     pub limitations: String,
     pub fixture: String,
 }
+/// Metadata for an application-supplied processing engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Engine {
     pub id: String,
@@ -78,6 +86,7 @@ pub struct Engine {
     pub requirements: String,
     pub capabilities: Vec<Capability>,
 }
+/// Inputs supplied to an operation. Handlers interpret the paths and text.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Request {
     pub operation: String,
@@ -86,6 +95,7 @@ pub struct Request {
     pub parameter: String,
     pub draft: String,
 }
+/// Displayable text, warnings and optional output from a completed operation.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Outcome {
     pub preview: String,
@@ -93,14 +103,17 @@ pub struct Outcome {
     pub written: Option<PathBuf>,
     pub draft: Option<String>,
 }
+/// A stable operation identifier and its user-facing label and hint.
 #[derive(Debug, Clone, Copy)]
 pub struct Operation {
     pub id: &'static str,
     pub label: &'static str,
     pub hint: &'static str,
 }
+/// Function shared by GUI and CLI entry points.
 pub type Handler = fn(Request, Job) -> Result<Outcome>;
 static NEXT: AtomicU64 = AtomicU64::new(1);
+/// Cooperative cancellation and progress shared by clones of a job.
 #[derive(Debug, Clone)]
 pub struct Job {
     pub id: u64,
@@ -114,6 +127,7 @@ impl Default for Job {
     }
 }
 impl Job {
+    /// Start a job with no cancellation request or known progress total.
     pub fn new() -> Self {
         Self {
             id: NEXT.fetch_add(1, Ordering::Relaxed),
@@ -122,9 +136,11 @@ impl Job {
             total: Arc::new(AtomicU64::new(0)),
         }
     }
+    /// Request cancellation. A handler observes the request through Self::check.
     pub fn cancel(&self) {
         self.cancelled.store(true, Ordering::Relaxed);
     }
+    /// Return a cancelled error if any clone requested cancellation.
     pub fn check(&self) -> Result<()> {
         if self.cancelled.load(Ordering::Relaxed) {
             Err(Error::new(ErrorKind::Cancelled, "Job cancelled"))
@@ -132,10 +148,12 @@ impl Job {
             Ok(())
         }
     }
+    /// Report completed work and its total. Use zero total for indeterminate progress.
     pub fn progress(&self, done: u64, total: u64) {
         self.total.store(total, Ordering::Relaxed);
         self.done.store(done, Ordering::Relaxed);
     }
+    /// Return an estimated fraction in 0–1, or None if the total is unknown.
     pub fn fraction(&self) -> Option<f32> {
         let total = self.total.load(Ordering::Relaxed);
         (total > 0)
@@ -190,12 +208,14 @@ pub fn write_new(path: &Path, build: impl FnOnce(&mut File) -> Result<()>) -> Re
     })?;
     Ok(())
 }
+/// Write bytes to a new output path, using the same no-overwrite policy as write_new.
 pub fn write_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
     write_new(path, |f| {
         f.write_all(bytes)?;
         Ok(())
     })
 }
+/// Schema version 1 settings. Application code controls loading and saving.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
@@ -213,6 +233,7 @@ impl Default for Settings {
     }
 }
 impl Settings {
+    /// Read and validate up to 64 KiB of JSON settings.
     pub fn parse(bytes: &[u8]) -> Result<Self> {
         if bytes.len() > 65536 {
             return Err(Error::input("Settings too large"));
@@ -223,6 +244,7 @@ impl Settings {
         }
         Ok(s)
     }
+    /// Validate settings and save JSON to a path that does not yet exist.
     pub fn save_new(&self, path: &Path) -> Result<()> {
         let bytes = serde_json::to_vec_pretty(self)?;
         Self::parse(&bytes)?;
