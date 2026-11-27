@@ -118,6 +118,24 @@ At this checkpoint, 1 of the original 12 acceptance gates in section 14 of the m
 - Document Studio `59b6c27` adds relative clockwise rotation of a selected PDF page range. Nine Linux headless tests and strict Clippy passed. Poppler confirmed that the CLI rotated only the requested page.
 - The earlier Data Studio SQL and Speech Studio portable packaging matrices have both completed with five successful targets.
 
+## Current coordinated checkpoint | 2026-11-27
+
+This section supersedes the earlier branch-head, consumer-pin, and “next source work” snapshots above. GitHub remains canonical; publishing and application IDs remain deferred.
+
+| Repository | Current integration state | Evidence and remaining gate |
+|---|---|---|
+| Localwright | PR #31 head `e93519a845049a9cecfc044d66fb3de84e0d4099` adds loaded-preview filtering to the shared paginated table. | Quick, Integration, and five native targets passed. Maintainer review was requested; PR remains open pending review. Local Linux verification: 37 UI tests plus the example compile. |
+| File Studio | PR #23 merged as `1c7114b617af8b98f0a7fe970adc459e41ed969a`. | Check and Integration passed. Manifests, lockfile, compatibility record, and license-source URLs pin the exact Localwright development SHA above. |
+| Data Studio | PR #27 merged as `9e347cb3d52d66a2a7d2ccb8a7b4915182219650`; PR #28 merged as `8ceeb074c70228ed151c3521f4019a4f9b405d9f`. | PR #27 Check, Integration, and five native targets passed. PR #28 adds typed standalone and project column operations; local full headless suite and all seven typed-operation tests passed after integrating PR #27. Its hosted Check, Integration, and five-target run was still in progress at this checkpoint. |
+| Document Studio | PR #18 merged as `fbf379ab70fdb25ec7de95008e7bafdaa6fc8718`. | Check and Linux GUI/headless/OCR Integration passed. The merge contains the latest PDF workspace baseline and pins the exact Localwright SHA. The PDF workspace code had prior five-target verification in PR #17. |
+| Speech Studio | PR #18 remains open at `e8e289e08ad7b9f5c77632dca2b935528a705e70`. | Check passed. The latest five-target Whisper/ASR run had four targets pass; Windows ARM64 was still building after the targeted clang-cl/ggml FP16 correction, and Integration was running. No physical audio-device test or multilingual WER/CER evidence is claimed. |
+
+All four studio manifests and lockfiles now resolve Localwright `e93519a845049a9cecfc044d66fb3de84e0d4099`; compatibility records and Localwright license-source URLs match. This is an immutable development Git revision, not a crates.io release. Localwright PR #31 is the reviewed source of that revision; the approval request is recorded on the PR.
+
+Data Studio’s typed representation now powers ordinary typed filtering/sorting, selection and rename, typed multi-column rename/drop, typed constant/index addition, and the version 2 project pipeline with joins, grouped aggregates, expressions and null-aware operations. Its table view remains a bounded preview; full-dataset virtualization, typed editing/undo, and migration of all legacy text transforms remain open. File catalogue refresh still uses complete traversal when change journals are not reliably available. Offline model-pack distribution, cross-device GUI behavior, full accessibility, packaging, and release acceptance remain open across the studios.
+
+The exact next continuation is to inspect the Windows ARM64 job on Speech Studio PR #18, correct only compiler errors evidenced by that job, and verify its final Check/Integration/native outcomes. Then reconcile the Data Studio PR #28 hosted outcomes against the already passing local full headless suite, and continue only after maintainer review of Localwright PR #31 where merge policy requires it. Do not claim the Speech Windows ARM64 optional ASR target until that job succeeds.
+
 ## Ten-operation increment
 
 - Speech Studio `13fdf0c` adds cue scaling, time-range trimming, splitting, merging and deletion with optional SRT export. Eleven Linux headless tests passed.
