@@ -203,8 +203,10 @@ mod tests {
     fn persists_toolbar_visibility_and_migrates_older_preferences() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("app/workbench.json");
-        let mut prefs = Preferences::default();
-        prefs.toolbar_visible = false;
+        let prefs = Preferences {
+            toolbar_visible: false,
+            ..Preferences::default()
+        };
         prefs.save(&path).unwrap();
         assert!(!Preferences::load(&path).unwrap().toolbar_visible);
 
