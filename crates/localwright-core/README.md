@@ -25,7 +25,7 @@ Share the same `Handler` between a CLI and the optional `localwright-ui` workben
 
 Place a versioned `manifest.json` in the application's `engines/` directory. Each entry names a relative executable, its SHA-256 digest, version, license reference, capabilities, time and pipe limits, and permitted environment names. `EngineRuntime::discover` validates the descriptor and executable; `EngineRuntime::run` starts only a registered executable, with argument-vector handling (no shell), a cleared/allowlisted environment, a private temporary working directory, bounded pipes, a deadline, and process-group cancellation. `health_check` uses the descriptor's health-check arguments. An explicitly trusted absolute path is supported through `resolve_trusted_path`; it is not found through `PATH`.
 
-This is process lifecycle hygiene, not a security sandbox. Engines inherit the user's operating-system permissions and may access the network; this API does not impose hard CPU or memory quotas. Review engine provenance and licenses independently, and use OS-level isolation if an engine is untrusted.
+The descriptor is the trust root: the digest does not authenticate a manifest that an attacker can replace. Keep the application bundle and manifest protected by the installer or operating system. This is process lifecycle hygiene, not a security sandbox. Engines inherit the user's operating-system permissions and may access the network; this API does not impose hard CPU or memory quotas. Review engine provenance and licenses independently, and use OS-level isolation if an engine is untrusted.
 
 ```json
 {
