@@ -131,7 +131,9 @@ struct State {
     handler: Handler,
     selected: String,
     input: String,
+    input_selection: Option<PathBuf>,
     output: String,
+    output_selection: Option<PathBuf>,
     parameter: String,
     editor: text_editor::Content,
     preview: String,
@@ -151,6 +153,10 @@ enum Message {
     Theme(String),
     Scale(u16),
     ShortcutKey(ShortcutCommand, String),
+    PickInput,
+    InputPicked(Option<PathBuf>),
+    PickOutput,
+    OutputPicked(Option<PathBuf>),
     Run,
     Cancel,
     KeyPressed(Key, Modifiers),
@@ -160,8 +166,14 @@ impl State {
     fn update(&mut self, msg: Message) -> Task<Message> {
         match msg {
             Message::Select(v) => self.selected = v.into(),
-            Message::Input(v) => self.input = v,
-            Message::Output(v) => self.output = v,
+            Message::Input(v) => {
+                self.input = v;
+                self.input_selection = None;
+            }
+            Message::Output(v) => {
+                self.output = v;
+                self.output_selection = None;
+            }
             Message::Parameter(v) => self.parameter = v,
             Message::Edit(a) => self.editor.perform(a),
             Message::Theme(v) => {
@@ -187,6 +199,36 @@ impl State {
                     }
                 }
             }
+            Message::PickInput => {
+                return Task::perform(
+                    async {
+                        rfd::AsyncFileDialog::new()
+                            .set_title("Select input file")
+                            .pick_file()
+                            .await
+                            .map(|file| file.path().to_path_buf())
+                    },
+                    Message::InputPicked,
+                );
+            }
+            Message::InputPicked(path) => {
+                apply_path_selection(&mut self.input, &mut self.input_selection, path);
+            }
+            Message::PickOutput => {
+                return Task::perform(
+                    async {
+                        rfd::AsyncFileDialog::new()
+                            .set_title("Choose output file")
+                            .save_file()
+                            .await
+                            .map(|file| file.path().to_path_buf())
+                    },
+                    Message::OutputPicked,
+                );
+            }
+            Message::OutputPicked(path) => {
+                apply_path_selection(&mut self.output, &mut self.output_selection, path);
+            }
             Message::Cancel => {
                 if let Some(j) = &self.job {
                     j.cancel();
@@ -210,8 +252,14 @@ impl State {
                 self.preview.clear();
                 let r = Request {
                     operation: self.selected.clone(),
-                    input: self.input.clone().into(),
-                    output: self.output.clone().into(),
+                    input: self
+                        .input_selection
+                        .clone()
+                        .unwrap_or_else(|| PathBuf::from(&self.input)),
+                    output: self
+                        .output_selection
+                        .clone()
+                        .unwrap_or_else(|| PathBuf::from(&self.output)),
                     parameter: self.parameter.clone(),
                     draft: self.editor.text(),
                 };
@@ -343,15 +391,25 @@ impl State {
                     .wrap(),
                     text(hint),
                     text("Input path"),
-                    text_input("Path to local input", &self.input)
-                        .on_input(Message::Input)
-                        .padding(8)
-                        .style(input_style),
+                    row![
+                        text_input("Path to local input", &self.input)
+                            .on_input(Message::Input)
+                            .padding(8)
+                            .style(input_style),
+                        button("Browse…").on_press(Message::PickInput)
+                    ]
+                    .spacing(8)
+                    .wrap(),
                     text("New output path"),
-                    text_input("Output path", &self.output)
-                        .on_input(Message::Output)
-                        .padding(8)
-                        .style(input_style),
+                    row![
+                        text_input("Output path", &self.output)
+                            .on_input(Message::Output)
+                            .padding(8)
+                            .style(input_style),
+                        button("Save as…").on_press(Message::PickOutput)
+                    ]
+                    .spacing(8)
+                    .wrap(),
                     text("Operation parameter"),
                     text_input("See operation description", &self.parameter)
                         .on_input(Message::Parameter)
@@ -427,6 +485,17 @@ fn shortcut_key_labels() -> Vec<String> {
         .collect()
 }
 
+fn apply_path_selection(
+    display: &mut String,
+    selected_path: &mut Option<PathBuf>,
+    selected: Option<PathBuf>,
+) {
+    if let Some(path) = selected {
+        *display = path.to_string_lossy().into_owned();
+        *selected_path = Some(path);
+    }
+}
+
 fn picker_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
     let mut style = pick_list::default(theme, status);
     style.border = control_border(theme, status != pick_list::Status::Active);
@@ -489,7 +558,9 @@ fn run_workbench(
                     handler,
                     selected: ops.first().map(|o| o.id).unwrap_or("").into(),
                     input: String::new(),
+                    input_selection: None,
                     output: String::new(),
+                    output_selection: None,
                     parameter: String::new(),
                     editor: text_editor::Content::new(),
                     preview: String::new(),
@@ -537,5 +608,34 @@ mod tests {
                 assert!(ratio >= 4.5, "{name} foreground contrast was {ratio:.2}:1");
             }
         }
+    }
+
+    #[test]
+    fn cancelling_a_native_picker_preserves_the_typed_path() {
+        let mut path = "manual/path.csv".to_owned();
+        let mut selected = None;
+        apply_path_selection(&mut path, &mut selected, None);
+        assert_eq!(path, "manual/path.csv");
+        assert_eq!(selected, None);
+        apply_path_selection(
+            &mut path,
+            &mut selected,
+            Some(PathBuf::from("/tmp/selected file.csv")),
+        );
+        assert_eq!(path, "/tmp/selected file.csv");
+        assert_eq!(selected, Some(PathBuf::from("/tmp/selected file.csv")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn native_picker_keeps_non_unicode_filesystem_path() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let path = PathBuf::from(std::ffi::OsString::from_vec(b"/tmp/name-\xff.csv".to_vec()));
+        let mut display = String::new();
+        let mut selected = None;
+        apply_path_selection(&mut display, &mut selected, Some(path.clone()));
+        assert_eq!(selected, Some(path));
+        assert!(display.contains('\u{fffd}'));
     }
 }
