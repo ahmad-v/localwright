@@ -1,7 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
+mod commands;
 mod preferences;
 mod shortcuts;
+pub use commands::{CommandDescriptor, CommandMenu, WorkbenchCommand, COMMAND_REGISTRY};
 use iced::{
     keyboard::{Key, Modifiers},
     theme::Palette,
@@ -145,6 +147,7 @@ struct State {
     status: String,
     panes: pane_grid::State<WorkspacePane>,
     workspace_tab: WorkspaceTab,
+    active_menu: Option<CommandMenu>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,6 +181,8 @@ enum Message {
     Done(Result<Outcome>),
     Resize(pane_grid::ResizeEvent),
     WorkspaceTab(WorkspaceTab),
+    Menu(CommandMenu),
+    Command(WorkbenchCommand),
 }
 impl State {
     fn update(&mut self, msg: Message) -> Task<Message> {
@@ -254,8 +259,12 @@ impl State {
             }
             Message::KeyPressed(key, modifiers) => {
                 match self.preferences.shortcuts.resolve(&key, modifiers) {
-                    Some(ShortcutCommand::Run) => return self.update(Message::Run),
-                    Some(ShortcutCommand::Cancel) => return self.update(Message::Cancel),
+                    Some(ShortcutCommand::Run) => {
+                        return self.update(Message::Command(WorkbenchCommand::Run));
+                    }
+                    Some(ShortcutCommand::Cancel) => {
+                        return self.update(Message::Command(WorkbenchCommand::Cancel));
+                    }
                     None => {}
                 }
             }
@@ -337,6 +346,32 @@ impl State {
                 }
             }
             Message::WorkspaceTab(tab) => self.workspace_tab = tab,
+            Message::Menu(menu) => {
+                self.active_menu = if self.active_menu == Some(menu) {
+                    None
+                } else {
+                    Some(menu)
+                };
+            }
+            Message::Command(command) => {
+                self.active_menu = None;
+                return match command {
+                    WorkbenchCommand::OpenInput => self.update(Message::PickInput),
+                    WorkbenchCommand::ChooseOutput => self.update(Message::PickOutput),
+                    WorkbenchCommand::Run => self.update(Message::Run),
+                    WorkbenchCommand::Cancel => self.update(Message::Cancel),
+                    WorkbenchCommand::ShowResults => {
+                        self.update(Message::WorkspaceTab(WorkspaceTab::Result))
+                    }
+                    WorkbenchCommand::ShowDraft => {
+                        self.update(Message::WorkspaceTab(WorkspaceTab::Draft))
+                    }
+                    WorkbenchCommand::ShowShortcuts => {
+                        self.status = self.preferences.shortcuts.summary();
+                        Task::none()
+                    }
+                };
+            }
         }
         Task::none()
     }
@@ -360,40 +395,41 @@ impl State {
         let shortcut_keys = shortcut_key_labels();
         let selected = ops.iter().copied().find(|o| o.0.id == self.selected);
         let hint = selected.map(|o| o.0.hint).unwrap_or("");
-        let mut run = button("Run operation")
-            .padding([8, 12])
-            .style(|theme, status| {
-                let mut style = button::primary(theme, status);
-                let pair = theme.extended_palette().primary.strong;
-                if status == button::Status::Hovered {
-                    style.background = Some(pair.color.into());
-                    style.border.width = 2.0;
-                    style.border.color = pair.text;
-                }
-                style.border.radius = control_border(theme, false).radius;
-                style
-            });
-        if self.job.is_none() && selected.is_some() {
-            run = run.on_press(Message::Run);
-        }
-        let mut cancel = button("Cancel").padding([8, 12]).style(|theme, status| {
-            let mut style = button::secondary(theme, status);
-            if status == button::Status::Hovered {
-                let pair = theme.extended_palette().secondary.strong;
-                style.text_color = pair.text;
-            }
-            style.border.radius = control_border(theme, false).radius;
-            style
+        let menu_bar = row(CommandMenu::all()
+            .iter()
+            .copied()
+            .map(|menu| button(menu.label()).on_press(Message::Menu(menu)).into())
+            .collect::<Vec<Element<'_, Message>>>())
+        .spacing(4);
+        let menu_items = self.active_menu.map(|menu| {
+            row(COMMAND_REGISTRY
+                .iter()
+                .filter(|descriptor| descriptor.menu == menu)
+                .map(|descriptor| {
+                    button(descriptor.label)
+                        .on_press(Message::Command(descriptor.command))
+                        .into()
+                })
+                .collect::<Vec<Element<'_, Message>>>())
+            .spacing(6)
         });
-        if self.job.is_some() {
-            cancel = cancel.on_press(Message::Cancel);
-        }
-        let toolbar = row![
-            button("Open…").on_press(Message::PickInput),
-            button("Save as…").on_press(Message::PickOutput),
-            run,
-            cancel,
-        ]
+        let toolbar = row(COMMAND_REGISTRY
+            .iter()
+            .filter(|descriptor| descriptor.toolbar)
+            .map(|descriptor| -> Element<'_, Message> {
+                let button = button(descriptor.label);
+                match descriptor.command {
+                    WorkbenchCommand::Run if self.job.is_none() && selected.is_some() => {
+                        button.on_press(Message::Command(descriptor.command)).into()
+                    }
+                    WorkbenchCommand::Cancel if self.job.is_some() => {
+                        button.on_press(Message::Command(descriptor.command)).into()
+                    }
+                    WorkbenchCommand::Run | WorkbenchCommand::Cancel => button.into(),
+                    _ => button.on_press(Message::Command(descriptor.command)).into(),
+                }
+            })
+            .collect::<Vec<Element<'_, Message>>>())
         .spacing(8)
         .wrap();
         let content = pane_grid::PaneGrid::new(&self.panes, |_, panel, _| {
@@ -439,7 +475,8 @@ impl State {
                                     .on_input(Message::Input)
                                     .padding(8)
                                     .style(input_style),
-                                button("Browse…").on_press(Message::PickInput)
+                                button("Browse…")
+                                    .on_press(Message::Command(WorkbenchCommand::OpenInput))
                             ]
                             .spacing(8)
                             .wrap(),
@@ -449,7 +486,8 @@ impl State {
                                     .on_input(Message::Output)
                                     .padding(8)
                                     .style(input_style),
-                                button("Save as…").on_press(Message::PickOutput)
+                                button("Save as…")
+                                    .on_press(Message::Command(WorkbenchCommand::ChooseOutput))
                             ]
                             .spacing(8)
                             .wrap(),
@@ -542,7 +580,12 @@ impl State {
         })
         .spacing(6)
         .on_resize(8, Message::Resize);
-        container(column![toolbar, content].spacing(8).padding(8))
+        let mut shell = column![menu_bar];
+        if let Some(items) = menu_items {
+            shell = shell.push(items);
+        }
+        shell = shell.push(toolbar).push(content).spacing(8).padding(8);
+        container(shell)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
@@ -665,6 +708,7 @@ fn run_workbench(
                     status: "Ready".into(),
                     panes,
                     workspace_tab: WorkspaceTab::Result,
+                    active_menu: None,
                 },
                 Task::none(),
             )
