@@ -386,9 +386,35 @@ fn escape_xml(value: &str) -> String {
 pub fn export_scatter(path: &Path, points: &[(f64, f64)], width: u32, height: u32) -> Result<()> {
     write_bytes(path, scatter_svg(points, width, height)?.as_bytes())
 }
+/// Export a styled scatter plot to a new path without overwriting an existing file.
+pub fn export_scatter_svg_styled(
+    path: &Path,
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    style: SeriesStyle,
+) -> Result<()> {
+    write_bytes(
+        path,
+        scatter_svg_styled(points, width, height, style)?.as_bytes(),
+    )
+}
 /// Write a vector line chart to a new path, preserving any existing file.
 pub fn export_line(path: &Path, points: &[(f64, f64)], width: u32, height: u32) -> Result<()> {
     write_bytes(path, line_svg(points, width, height)?.as_bytes())
+}
+/// Export a styled line chart to a new path without overwriting an existing file.
+pub fn export_line_svg_styled(
+    path: &Path,
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    style: SeriesStyle,
+) -> Result<()> {
+    write_bytes(
+        path,
+        line_svg_styled(points, width, height, style)?.as_bytes(),
+    )
 }
 
 #[cfg(test)]

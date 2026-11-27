@@ -11,7 +11,7 @@ documentation = "https://docs.rs/localwright-core"
 readme = "README.md"
 keywords = ["offline", "desktop", "filesystem"]
 categories = ["filesystem"]
-include = ["src/**", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "THIRD_PARTY_NOTICES.md"]
+include = ["src/**", "data/palettes/**", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "THIRD_PARTY_NOTICES.md"]
 
 [dependencies]
 serde = { version = "=1.0.221", features = ["derive"] }

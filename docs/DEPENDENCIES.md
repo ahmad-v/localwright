@@ -6,6 +6,8 @@ A preliminary RustSec review used advisory database revision `c9f6c91a44dbad9d71
 
 The private engine runtime adds `command-group 5.0.1` for process-group/job-object lifecycle management and `sha2 0.10.8` for streaming executable verification. Both are exact-version Rust dependencies in the lockfile; the workflow and security review must continue to evaluate their transitive licenses and advisories. Engine descriptors carry a license reference, but this does not replace per-engine provenance, notice, and compatibility review.
 
+Scientific figure palettes add no Cargo dependency. The core embeds quantized RGB values from Fabio Crameri's Scientific Colour Maps `batlow`, `vik`, and categorical `batlowS`; the source files are MIT licensed and pinned with hashes in `crates/localwright-core/data/palettes/source.json`. The required notice and attribution are in `crates/localwright-core/THIRD_PARTY_NOTICES.md` and are included in the core package. Okabe-Ito is specified as the categorical default in v1.3 but is not bundled because the official source has no explicit software redistribution license; its primary sources, copyright statement and observed SHA-256 values are recorded in `source.json` for permission review.
+
 The native shared workbench adds exact `rfd 0.15.4` (MIT) only to `localwright-ui`, with its asynchronous XDG Desktop Portal backend enabled on Linux. This adds an async D-Bus/portal dependency graph to the UI crate; `localwright-core` remains independent of dialogs, Iced and this graph. Linux runtime environments need a compatible desktop portal backend; the library can fall back to `zenity` if portal requests fail. Dialog selection has not yet been manually exercised on installed desktops.
 
 ### 27 November 2026 security review

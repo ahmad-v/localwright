@@ -1,6 +1,6 @@
 # localwright-core
 
-Local application contracts, cooperative jobs, bounded file I/O, scientific SVG figures and a private engine runtime. Figure exports support monochrome-safe and marker/dash series styles, plus optional visible title and axis labels that are bounded and XML-escaped. This crate has no GUI dependency.
+Local application contracts, cooperative jobs, bounded file I/O, scientific SVG figures and a private engine runtime. Figure exports support monochrome-safe and marker/dash series styles, plus optional visible title and axis labels that are bounded and XML-escaped. The core includes sequential `batlow`, diverging `vik` and qualitative `batlowS` scientific palettes with their source notice. Okabe-Ito, a v1.3 target, is not bundled pending redistribution-license clarification. This crate has no GUI dependency.
 
 ```toml
 [dependencies]
@@ -18,6 +18,24 @@ fn main() -> localwright_core::Result<()> {
     Ok(())
 }
 ```
+
+Choose a discrete palette color and combine hue with a marker or dash pattern:
+
+```rust,no_run
+use localwright_core::{figure::{line_svg_styled, Marker}, palettes::palette};
+
+fn main() -> localwright_core::Result<()> {
+    let colors = palette("batlowS").ok_or_else(|| {
+        localwright_core::Error::input("palette is not bundled")
+    })?;
+    let style = colors.series_style(0, Marker::Circle, false)?;
+    let svg = line_svg_styled(&[(0.0, 1.0), (1.0, 2.0)], 640, 480, style)?;
+    assert!(svg.contains(style.color));
+    Ok(())
+}
+```
+
+`batlow` is for ordered nonnegative quantities, `vik` for values with a meaningful center, and `batlowS` for nominal categories. The quantitative maps return the nearest 8-bit sample for a normalized position. Do not rely on hue alone for categories: pair colors with marker or line styles and inspect print output. Palette data provenance and terms are in `THIRD_PARTY_NOTICES.md` and `data/palettes/source.json`.
 
 Create a labeled SVG directly or export it to a new path:
 
