@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 pub(super) const MAX_PROJECT_TABS: usize = 32;
+// Keep the next monotonic project id outside the invalid/overflow range.
+pub(super) const MAX_PROJECT_ID: u64 = u64::MAX - (MAX_PROJECT_TABS as u64 + 1);
 const MAX_TITLE_CHARS: usize = 64;
 
 /// Bounded project-tab metadata persisted with the workbench layout.
@@ -31,7 +33,7 @@ impl PersistedProjectTabs {
         }
         let mut ids = HashSet::with_capacity(self.tabs.len());
         for tab in &self.tabs {
-            if tab.id == 0 || tab.id == u64::MAX || !ids.insert(tab.id) {
+            if tab.id == 0 || tab.id > MAX_PROJECT_ID || !ids.insert(tab.id) {
                 return Err("Project tab identifiers must be unique and in range".into());
             }
             if tab.title.trim().is_empty()
@@ -51,10 +53,7 @@ impl PersistedProjectTabs {
     }
 
     pub fn next_id(&self) -> u64 {
-        let used = self.tabs.iter().map(|tab| tab.id).collect::<HashSet<_>>();
-        (1..=(MAX_PROJECT_TABS as u64 + 1))
-            .find(|candidate| !used.contains(candidate))
-            .unwrap_or(1)
+        self.tabs.iter().map(|tab| tab.id).max().unwrap_or(0) + 1
     }
 }
 
@@ -106,6 +105,10 @@ mod tests {
                 active_id: Some(0),
             },
             PersistedProjectTabs {
+                tabs: vec![tab(MAX_PROJECT_ID + 1, "Near limit")],
+                active_id: Some(MAX_PROJECT_ID + 1),
+            },
+            PersistedProjectTabs {
                 tabs: vec![tab(1, &"x".repeat(MAX_TITLE_CHARS + 1))],
                 active_id: Some(1),
             },
@@ -121,7 +124,7 @@ mod tests {
     }
 
     #[test]
-    fn next_identifier_skips_used_ids_without_overflowing() {
+    fn identifier_headroom_prevents_overflow_after_restoring_near_limit_values() {
         let saved = PersistedProjectTabs {
             tabs: vec![
                 PersistedProjectTab {
@@ -129,13 +132,13 @@ mod tests {
                     title: "First".into(),
                 },
                 PersistedProjectTab {
-                    id: u64::MAX - 1,
-                    title: "Near limit".into(),
+                    id: MAX_PROJECT_ID,
+                    title: "Highest allowed identifier".into(),
                 },
             ],
-            active_id: Some(u64::MAX - 1),
+            active_id: Some(MAX_PROJECT_ID),
         };
         saved.validate().unwrap();
-        assert_eq!(saved.next_id(), 2);
+        assert_eq!(saved.next_id(), MAX_PROJECT_ID + 1);
     }
 }

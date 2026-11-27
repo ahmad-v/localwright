@@ -17,7 +17,7 @@ use iced::{
 };
 use localwright_core::{Error, ErrorKind, Handler, Job, Operation, Outcome, Request, Result};
 use preferences::{app_preferences_path, Preferences};
-use project_tabs::{PersistedProjectTab, PersistedProjectTabs, MAX_PROJECT_TABS};
+use project_tabs::{PersistedProjectTab, PersistedProjectTabs, MAX_PROJECT_ID, MAX_PROJECT_TABS};
 pub use shortcuts::{ShortcutBinding, ShortcutCommand, ShortcutKey, ShortcutRegistry};
 use std::{fmt, path::PathBuf};
 pub use table::{
@@ -414,6 +414,10 @@ impl State {
             return;
         }
         let id = self.next_project_id;
+        if id > MAX_PROJECT_ID {
+            self.status = "Project identifier space exhausted; restart the workbench".into();
+            return;
+        }
         let Some(next_id) = id.checked_add(1) else {
             self.status = "Project identifier space exhausted; restart the workbench".into();
             return;
@@ -1691,5 +1695,20 @@ mod tests {
         assert_eq!(state.active_project, 1);
         assert_eq!(state.preferences.project_tabs.active_id, Some(1));
         assert!(state.status.contains("Current project tab 1 of 1"));
+    }
+
+    #[test]
+    fn adding_a_project_stops_before_identifier_headroom_is_exhausted() {
+        let mut state = state_for_test();
+        state.projects[0].id = MAX_PROJECT_ID;
+        state.active_project = MAX_PROJECT_ID;
+        state.next_project_id = MAX_PROJECT_ID + 1;
+
+        state.add_project();
+
+        assert_eq!(state.projects.len(), 1);
+        assert_eq!(state.active_project, MAX_PROJECT_ID);
+        assert_eq!(state.next_project_id, MAX_PROJECT_ID + 1);
+        assert!(state.status.contains("identifier space exhausted"));
     }
 }
