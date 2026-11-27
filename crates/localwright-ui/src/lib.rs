@@ -6,7 +6,8 @@ use iced::{
     keyboard::{Key, Modifiers},
     theme::Palette,
     widget::{
-        button, column, container, pick_list, row, scrollable, text, text_editor, text_input,
+        button, column, container, pane_grid, pick_list, row, scrollable, text, text_editor,
+        text_input,
     },
     Border, Color, Element, Length, Subscription, Task, Theme,
 };
@@ -142,6 +143,20 @@ struct State {
     preferences_error: Option<String>,
     job: Option<Job>,
     status: String,
+    panes: pane_grid::State<WorkspacePane>,
+    workspace_tab: WorkspaceTab,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkspacePane {
+    Controls,
+    Workspace,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkspaceTab {
+    Result,
+    Draft,
 }
 #[derive(Debug, Clone)]
 enum Message {
@@ -161,6 +176,8 @@ enum Message {
     Cancel,
     KeyPressed(Key, Modifiers),
     Done(Result<Outcome>),
+    Resize(pane_grid::ResizeEvent),
+    WorkspaceTab(WorkspaceTab),
 }
 impl State {
     fn update(&mut self, msg: Message) -> Task<Message> {
@@ -310,6 +327,16 @@ impl State {
                     }
                 }
             }
+            Message::Resize(event) => {
+                let ratio = normalized_panel_ratio(event.ratio, self.preferences.panel_ratio);
+                self.panes.resize(event.split, ratio);
+                let ratio_percent = (ratio * 100.0).round() as u8;
+                if self.preferences.panel_ratio != ratio_percent {
+                    self.preferences.panel_ratio = ratio_percent;
+                    self.save_preferences();
+                }
+            }
+            Message::WorkspaceTab(tab) => self.workspace_tab = tab,
         }
         Task::none()
     }
@@ -361,118 +388,176 @@ impl State {
         if self.job.is_some() {
             cancel = cancel.on_press(Message::Cancel);
         }
-        scrollable(
-            container(
-                column![
-                    row![
-                        row![
-                            text("Operation"),
-                            pick_list(ops, selected, |choice| Message::Select(choice.0.id))
-                                .style(picker_style)
+        let toolbar = row![
+            button("Open…").on_press(Message::PickInput),
+            button("Save as…").on_press(Message::PickOutput),
+            run,
+            cancel,
+        ]
+        .spacing(8)
+        .wrap();
+        let content = pane_grid::PaneGrid::new(&self.panes, |_, panel, _| {
+            let body: Element<'_, Message> = match panel {
+                WorkspacePane::Controls => scrollable(
+                    container(
+                        column![
+                            row![
+                                row![
+                                    text("Operation"),
+                                    pick_list(ops.clone(), selected, |choice| Message::Select(
+                                        choice.0.id
+                                    ))
+                                    .style(picker_style)
+                                ]
+                                .spacing(8)
+                                .align_y(iced::Alignment::Center),
+                                row![
+                                    text("Theme"),
+                                    pick_list(
+                                        themes.clone(),
+                                        Some(self.preferences.theme.clone()),
+                                        Message::Theme
+                                    )
+                                    .style(picker_style)
+                                ]
+                                .spacing(8)
+                                .align_y(iced::Alignment::Center),
+                                row![
+                                    text("UI scale (%)"),
+                                    pick_list(SCALES, Some(self.preferences.scale), Message::Scale)
+                                        .style(picker_style)
+                                ]
+                                .spacing(8)
+                                .align_y(iced::Alignment::Center),
+                            ]
+                            .spacing(16)
+                            .wrap(),
+                            text(hint),
+                            text("Input path"),
+                            row![
+                                text_input("Path to local input", &self.input)
+                                    .on_input(Message::Input)
+                                    .padding(8)
+                                    .style(input_style),
+                                button("Browse…").on_press(Message::PickInput)
+                            ]
+                            .spacing(8)
+                            .wrap(),
+                            text("New output path"),
+                            row![
+                                text_input("Output path", &self.output)
+                                    .on_input(Message::Output)
+                                    .padding(8)
+                                    .style(input_style),
+                                button("Save as…").on_press(Message::PickOutput)
+                            ]
+                            .spacing(8)
+                            .wrap(),
+                            text("Operation parameter"),
+                            text_input("See operation description", &self.parameter)
+                                .on_input(Message::Parameter)
+                                .padding(8)
+                                .style(input_style),
+                            row![
+                                text("Run shortcut"),
+                                pick_list(
+                                    shortcut_keys.clone(),
+                                    self.preferences
+                                        .shortcuts
+                                        .binding(ShortcutCommand::Run)
+                                        .map(|binding| binding.key.label()),
+                                    |label| Message::ShortcutKey(ShortcutCommand::Run, label)
+                                )
+                                .style(picker_style),
+                                text("Cancel shortcut"),
+                                pick_list(
+                                    shortcut_keys.clone(),
+                                    self.preferences
+                                        .shortcuts
+                                        .binding(ShortcutCommand::Cancel)
+                                        .map(|binding| binding.key.label()),
+                                    |label| Message::ShortcutKey(ShortcutCommand::Cancel, label)
+                                )
+                                .style(picker_style),
+                            ]
+                            .spacing(8)
+                            .align_y(iced::Alignment::Center)
+                            .wrap(),
+                            text(self.preferences.shortcuts.summary()),
                         ]
-                        .spacing(8)
-                        .align_y(iced::Alignment::Center),
-                        row![
-                            text("Theme"),
-                            pick_list(themes, Some(self.preferences.theme.clone()), Message::Theme)
-                                .style(picker_style)
+                        .spacing(8),
+                    )
+                    .width(Length::Fill)
+                    .padding(12),
+                )
+                .into(),
+                WorkspacePane::Workspace => {
+                    let tabs = row![
+                        button("Results").on_press(Message::WorkspaceTab(WorkspaceTab::Result)),
+                        button("Draft / transcript")
+                            .on_press(Message::WorkspaceTab(WorkspaceTab::Draft)),
+                    ]
+                    .spacing(8);
+                    let panel = match self.workspace_tab {
+                        WorkspaceTab::Result => column![
+                            text("Result and warnings"),
+                            text(&self.preview).wrapping(text::Wrapping::WordOrGlyph),
                         ]
-                        .spacing(8)
-                        .align_y(iced::Alignment::Center),
-                        row![
-                            text("UI scale (%)"),
-                            pick_list(SCALES, Some(self.preferences.scale), Message::Scale)
-                                .style(picker_style)
-                        ]
-                        .spacing(8)
-                        .align_y(iced::Alignment::Center),
-                    ]
-                    .spacing(16)
-                    .wrap(),
-                    text(hint),
-                    text("Input path"),
-                    row![
-                        text_input("Path to local input", &self.input)
-                            .on_input(Message::Input)
-                            .padding(8)
-                            .style(input_style),
-                        button("Browse…").on_press(Message::PickInput)
-                    ]
-                    .spacing(8)
-                    .wrap(),
-                    text("New output path"),
-                    row![
-                        text_input("Output path", &self.output)
-                            .on_input(Message::Output)
-                            .padding(8)
-                            .style(input_style),
-                        button("Save as…").on_press(Message::PickOutput)
-                    ]
-                    .spacing(8)
-                    .wrap(),
-                    text("Operation parameter"),
-                    text_input("See operation description", &self.parameter)
-                        .on_input(Message::Parameter)
-                        .padding(8)
-                        .style(input_style),
-                    row![run, cancel].spacing(8).wrap(),
-                    row![
-                        text("Run shortcut"),
-                        pick_list(
-                            shortcut_keys.clone(),
-                            self.preferences
-                                .shortcuts
-                                .binding(ShortcutCommand::Run)
-                                .map(|binding| binding.key.label()),
-                            |label| Message::ShortcutKey(ShortcutCommand::Run, label)
+                        .spacing(8),
+                        WorkspaceTab::Draft => column![text("Editable draft / transcript"), {
+                            let editor = text_editor(&self.editor).height(Length::Fill).style(
+                                |theme, status| {
+                                    let mut style = text_editor::default(theme, status);
+                                    style.border = control_border(
+                                        theme,
+                                        status == text_editor::Status::Focused,
+                                    );
+                                    style
+                                },
+                            );
+                            if self.job.is_none() {
+                                editor.on_action(Message::Edit)
+                            } else {
+                                editor
+                            }
+                        },]
+                        .spacing(8),
+                    };
+                    scrollable(
+                        container(
+                            column![
+                                tabs,
+                                text(status.clone()).wrapping(text::Wrapping::WordOrGlyph),
+                                panel
+                            ]
+                            .spacing(12),
                         )
-                        .style(picker_style),
-                        text("Cancel shortcut"),
-                        pick_list(
-                            shortcut_keys,
-                            self.preferences
-                                .shortcuts
-                                .binding(ShortcutCommand::Cancel)
-                                .map(|binding| binding.key.label()),
-                            |label| Message::ShortcutKey(ShortcutCommand::Cancel, label)
-                        )
-                        .style(picker_style),
-                    ]
-                    .spacing(8)
-                    .align_y(iced::Alignment::Center)
-                    .wrap(),
-                    text(self.preferences.shortcuts.summary()),
-                    text(status).wrapping(text::Wrapping::WordOrGlyph),
-                    text("Result and warnings"),
-                    text(&self.preview).wrapping(text::Wrapping::WordOrGlyph),
-                    text("Editable draft / transcript"),
-                    {
-                        let editor = text_editor(&self.editor)
-                            .height(Length::Fixed(160.0))
-                            .style(|theme, status| {
-                                let mut style = text_editor::default(theme, status);
-                                style.border =
-                                    control_border(theme, status == text_editor::Status::Focused);
-                                style
-                            });
-                        if self.job.is_none() {
-                            editor.on_action(Message::Edit)
-                        } else {
-                            editor
-                        }
-                    },
-                ]
-                .spacing(8),
-            )
+                        .width(Length::Fill)
+                        .padding(12),
+                    )
+                    .into()
+                }
+            };
+            pane_grid::Content::new(body)
+        })
+        .spacing(6)
+        .on_resize(8, Message::Resize);
+        container(column![toolbar, content].spacing(8).padding(8))
             .width(Length::Fill)
-            .padding(16),
-        )
-        .height(Length::Fill)
-        .into()
+            .height(Length::Fill)
+            .into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
         iced::keyboard::on_key_press(|key, modifiers| Some(Message::KeyPressed(key, modifiers)))
+    }
+}
+
+fn normalized_panel_ratio(candidate: f32, fallback_percent: u8) -> f32 {
+    if candidate.is_finite() {
+        candidate.clamp(0.2, 0.7)
+    } else {
+        f32::from(fallback_percent.clamp(20, 70)) / 100.0
     }
 }
 
@@ -547,6 +632,15 @@ fn run_workbench(
         ),
         None => (Preferences::default(), None),
     };
+    let (mut panes, controls) = pane_grid::State::new(WorkspacePane::Controls);
+    let (_, split) = panes
+        .split(
+            pane_grid::Axis::Vertical,
+            controls,
+            WorkspacePane::Workspace,
+        )
+        .expect("initial workspace split is valid");
+    panes.resize(split, f32::from(preferences.panel_ratio) / 100.0);
     iced::application(title, State::update, State::view)
         .subscription(State::subscription)
         .theme(|s: &State| preset(&s.preferences.theme))
@@ -569,6 +663,8 @@ fn run_workbench(
                     preferences_error,
                     job: None,
                     status: "Ready".into(),
+                    panes,
+                    workspace_tab: WorkspaceTab::Result,
                 },
                 Task::none(),
             )
@@ -637,5 +733,12 @@ mod tests {
         apply_path_selection(&mut display, &mut selected, Some(path.clone()));
         assert_eq!(selected, Some(path));
         assert!(display.contains('\u{fffd}'));
+    }
+
+    #[test]
+    fn workspace_split_ratio_stays_within_safe_bounds() {
+        assert_eq!(normalized_panel_ratio(0.1, 34), 0.2);
+        assert_eq!(normalized_panel_ratio(0.9, 34), 0.7);
+        assert_eq!(normalized_panel_ratio(f32::NAN, 44), 0.44);
     }
 }

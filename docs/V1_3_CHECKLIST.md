@@ -37,7 +37,7 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 07 | Offline aligned translation | Open | Review a local backend and model licenses. |
 | 07 | Offline narration and chaptered exports | Open | Review TTS engines, voices and applicable licenses. |
 | 07 | Audio preparation and directional media formats | Partial | WAV preparation at four input rates, SRT/VTT and duration-lossy LRC exchange have Linux fixtures. Wider codecs and independent playback verification remain. |
-| 08 | Twenty themes, appearance settings and customization | Partial | Twenty presets, per-app theme/scale persistence, and persisted Run/Cancel key selectors are implemented. System theme behavior and full customization remain. |
+| 08 | Twenty themes, appearance settings and customization | Partial | Twenty presets, per-app theme/scale/shortcut and bounded sidebar-ratio persistence, plus an integrated resizable controls/workspace split with Results and Draft tabs. System theme behavior, multiple project tabs and full customization remain. |
 | 08 | Accessibility, localization and desktop input | Partial | Scale and contrast coverage exist; native asynchronous open/save dialogs are integrated, and shortcut events preserve keys already consumed by editors. Screen-reader support, full focus management, localization and platform/device interaction checks remain. |
 | 09 | Scientific palettes and accessible figures | Partial | Data Studio exports shared monochrome SVG scatter and line charts. Verified palette metadata and publication controls remain. |
 | 10 | Directional capability registry and native import/export routing | Partial | Development registries and route selectors exist. Platform, engine and fixture binding remains. |
