@@ -35,6 +35,45 @@ fn main() -> localwright_core::Result<()> {
 }
 ```
 
+Render and export multiple labeled series with shared axes and a legend. Line figures include marker and dash examples in the legend; scatter figures show each series marker.
+
+```rust,no_run
+use localwright_core::{
+    figure::{export_line_series_svg_labeled, FigureLabels, FigureSeries, Marker},
+    palettes::palette,
+};
+
+fn main() -> localwright_core::Result<()> {
+    let palette = palette("batlowS")
+        .ok_or_else(|| localwright_core::Error::input("palette is not bundled"))?;
+    let control = [(0.0, 1.0), (1.0, 2.0)];
+    let treatment = [(0.0, 1.5), (1.0, 2.5)];
+    let series = [
+        FigureSeries::new(
+            "Control",
+            &control,
+            palette.series_style(0, Marker::Circle, false)?,
+        ),
+        FigureSeries::new(
+            "Treatment",
+            &treatment,
+            palette.series_style(1, Marker::Triangle, true)?,
+        ),
+    ];
+    export_line_series_svg_labeled(
+        std::path::Path::new("comparison.svg"),
+        &series,
+        900,
+        600,
+        FigureLabels {
+            title: "Response by dose",
+            x_axis: "Dose (mg)",
+            y_axis: "Response (a.u.)",
+        },
+    )
+}
+```
+
 `batlow` is for ordered nonnegative quantities, `vik` for values with a meaningful center, and `batlowS` for nominal categories. The quantitative maps return the nearest 8-bit sample for a normalized position. Do not rely on hue alone for categories: pair colors with marker or line styles and inspect print output. Palette data provenance and terms are in `THIRD_PARTY_NOTICES.md` and `data/palettes/source.json`.
 
 Create a labeled SVG directly or export it to a new path:
