@@ -9,7 +9,7 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 02 | Four independently installable studios and independent shared toolkit | Partial | Five source repositories exist. Independent installer and uninstall checks remain open. |
 | 02 | End-to-end initial slice in each repository | Partial | Local fixtures cover subsets. Full packaged slice remains open. |
 | 03 | Reusable standalone framework, public API and external example | Partial | Core/UI crates and external example. Full integration and target tests remain. |
-| 03 | Settings, jobs, errors, capability and engine contracts | Partial | Core interfaces exist. Jobs are cooperative and private runtime support is incomplete. |
+| 03 | Settings, jobs, errors, capability and engine contracts | Partial | Core interfaces and a versioned private engine runtime exist; Linux unit, cancellation, timeout, hash, bounds and GUI workspace checks pass. Native target verification and OS resource isolation remain open. |
 | 04 | Read-only signature inspection, MIME, timestamps, encoding, hex and extraction | Partial | Signature, size and filesystem timestamp reporting and bounded hex/ASCII inspection exist. Rich inspection remains. |
 | 04 | Metadata inspection, export, editing and copy-on-write sanitation | Partial | PNG chunk inspection and selective text/EXIF removal passed independent checks. Broader metadata editing remains. |
 | 04 | Catalogue, disconnected volume search, scan history and QR labels | Partial | Saved JSON inventory search and comparison work with the source disconnected. Indexed catalogues, volume identity, history and QR labels remain. |

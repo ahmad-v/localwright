@@ -1,0 +1,86 @@
+name: Security and dependency review
+
+on:
+  schedule:
+    - cron: '31 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: RustSec, CycloneDX and license metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_AUDIT_VERSION: 0.23.0
+      CARGO_CYCLONEDX_VERSION: 0.5.10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/.cargo/advisory-db
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/.cargo/bin/cargo-audit
+            ~/.cargo/bin/cargo-cyclonedx
+          key: ${{ runner.os }}-${{ runner.arch }}-rust1.88-security-audit-${{ env.CARGO_AUDIT_VERSION }}-sbom-${{ env.CARGO_CYCLONEDX_VERSION }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+      - name: Install pinned RustSec audit tool
+        run: |
+          if ! cargo-audit --version 2>/dev/null | grep -Fq "$CARGO_AUDIT_VERSION"; then
+            cargo install --locked --version "$CARGO_AUDIT_VERSION" cargo-audit
+          fi
+      - name: Install pinned CycloneDX tool for manual inventory
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if ! cargo-cyclonedx --version 2>/dev/null | grep -Fq "$CARGO_CYCLONEDX_VERSION"; then
+            cargo install --locked --version "$CARGO_CYCLONEDX_VERSION" cargo-cyclonedx
+          fi
+      - name: Audit locked dependencies against RustSec
+        run: cargo audit --locked
+      - name: Generate CycloneDX SBOM and license metadata inventory
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cargo cyclonedx --format json --target x86_64-unknown-linux-gnu --override-filename localwright-sbom
+          python3 -m json.tool localwright-sbom.json > /dev/null
+          cargo metadata --locked --format-version 1 > metadata.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          metadata = json.loads(Path('metadata.json').read_text())
+          packages = sorted(metadata['packages'], key=lambda package: (package['name'], package['version']))
+          missing = [f"{package['name']} {package['version']}" for package in packages if package['source'] and not package.get('license') and not package.get('license_file')]
+          report = {
+              'format': 'cargo-metadata-license-inventory-v1',
+              'note': 'Inventory only. Verify license compatibility, notices, native components, and bundled assets before distribution.',
+              'packages': [{'name': package['name'], 'version': package['version'], 'license': package.get('license'), 'license_file': package.get('license_file'), 'source': package.get('source')} for package in packages],
+              'external_packages_missing_license_metadata': missing,
+          }
+          Path('dependency-license-inventory.json').write_text(json.dumps(report, indent=2) + '\n')
+          if missing:
+              raise SystemExit('Missing license metadata: ' + ', '.join(missing))
+          PY
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: localwright-dependency-review-${{ github.sha }}
+          path: |
+            localwright-sbom.json
+            dependency-license-inventory.json
+          if-no-files-found: error
+          retention-days: 30

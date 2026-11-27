@@ -219,3 +219,34 @@ Speech Studio adds ten bounded 1-based cue-range text operations: uppercase, low
 Linux verification passed Data Studio's 61 locked no-default-feature tests (25 unit and 36 integration/fixture tests), strict Clippy, default-feature all-target compilation, formatting, capability JSON parsing and diff check. Speech Studio passed 24 locked no-default-feature tests (20 unit and 4 integration), strict Clippy, GUI-enabled all-target compilation, formatting, capability JSON parsing and diff check. Data commit `00aa89c` merged as `690bc88` in [PR #14](https://github.com/ahmad-v/data-studio/pull/14), with hosted matrix [46011125638](https://github.com/ahmad-v/data-studio/actions/runs/46011125638). Speech commit `0f44fc5` merged as `59119c8` in [PR #10](https://github.com/ahmad-v/speech-studio/pull/10), with hosted matrix [46011122838](https://github.com/ahmad-v/speech-studio/actions/runs/46011122838). Both matrices were running on four targets and queued on macOS when checked.
 
 These twenty operations expand the existing Data transformation and Speech transcript editing groups. They do not close either broad group; regex/arbitrary formulas, project authoring/undo, audio playback, waveform interaction and timeline workflows remain incomplete. Totals remain 48 Partial, 2 Open and 2 Deferred; Section 14 remains 1 of 12 verified gates. Offline aligned translation and narration remain Open pending actual engines and license-cleared model/voice assets.
+
+## Architecture acceleration batch — 27 November 2026
+
+Current work is on Localwright branch `codex/private-engine-runtime` based on `origin/main` `8eab6f2`. Studio CI changes are being developed independently in their own repositories; do not cherry-pick or merge a branch until its stable quick check and any applicable acceptance workflows have finished.
+
+### Localwright implementation in this batch
+
+- Added `localwright_core::engine`: strict schema-v1 descriptors, app-relative executable discovery, explicit absolute trusted-path API, SHA-256 checks at discovery and launch, capability registration, health-check entry point, structured shell-free arguments, environment clearing/allowlist, per-job private temporary working directory, bounded stdin/stdout/stderr, deadline, cancellation polling, and process-group/job-object termination.
+- Added exact dependencies `command-group 5.0.1` and `sha2 0.10.8`; lockfile updated. Engine descriptor licenses are recorded, but this is not an approval of bundled engine licenses.
+- This is process lifecycle hygiene, not sandbox isolation: engine processes retain user permissions and network access; hard CPU/memory limits are not implemented.
+- Reworked ordinary Localwright checks from the full native matrix to one Linux x64 quick check, preserving `Check / Rust (ubuntu-24.04)`. Added separate labeled/manual integration and native workflows, manual crate archive rehearsal, and scheduled/manual dependency/license metadata inventory workflow. Do not run distribution on ordinary changes.
+- Updated Localwright architecture, dependency, status and requirement checklist documentation.
+
+### Verification
+
+On Linux x86_64 with Rust 1.88.0: `cargo test --locked -p localwright-core` passed 8 unit tests and 1 doctest; `cargo clippy --locked -p localwright-core --all-targets -- -D warnings` passed; `cargo check --locked --workspace --all-targets` passed (default Iced UI included). Formatting, locked metadata, dependency tree, capability JSON parsing, all five workflow YAML parses and `git diff --check` passed. Native platform, engine distribution, and installed consumer verification remain pending. Earlier first test attempts failed because shared target caches filled the 7.9 GB workspace; only generated `target/` caches in File, Data and Speech repositories were removed to recover space. No source from those repos was changed by cleanup.
+
+### Cross-studio CI status
+
+- File Studio PR #11, branch `codex/ci-architecture`, commit `9b56e75`; quick, integration and five-target native runs pending at last update. Local manifest/format/all-target check passed, test compilation hit the disk limit before removal of its generated target.
+- Data Studio PR #16, branch `codex/ci-architecture-data`, commit `828e397`; hosted Linux quick check substantive steps (format, locked all-target compile, tests, Clippy) passed; GitHub still showed post-job cleanup in progress. Local target cache was removed only after disk exhaustion.
+- Document Studio PR #9, branch `codex/ci-architecture-document`; YAML/Python/JSON/diff checks passed; hosted quick check pending; local Cargo unavailable for its agent.
+- Speech Studio CI workflows were drafted and YAML/metadata/capability/diff validated; branch/PR confirmation pending.
+- GitHub branch protection inspection returned 403 in each studio. Preserve `Check / Rust (ubuntu-24.04)` and do not assume an inaccessible rule is satisfied. CI labels may be required for milestone workflows.
+
+### Next exact continuation
+
+1. Re-run Localwright formatting, core tests, strict Clippy, workspace all-target check and YAML validation after final workflow edits; then commit and push `codex/private-engine-runtime`, open a PR, and wait for its quick check.
+2. Review all four studio workflow branches, identify incorrect paths/label conditions and ensure no routine release build remains in `check.yml`; keep PRs unmerged until checks report a terminal result. Apply `integration` and `platform-validation` labels only when appropriate.
+3. At the next architecture milestone, implement shared native workspace infrastructure (native dialogs, command/shortcut registry, persistent layout, tabs/panels/accessibility) or typed Data Studio architecture as a separate substantive batch. Studios still use Localwright rev `3091d10`; update those immutable pins together only after the shared change is reviewed and validated across consumers.
+4. The user asked to keep IDs and publishing deferred. Do not publish GitHub releases or crates.io artifacts.

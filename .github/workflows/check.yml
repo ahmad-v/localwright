@@ -9,57 +9,80 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   rust:
-    name: Rust (${{ matrix.runner }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            arch: X64
-          - runner: ubuntu-24.04-arm
-            arch: ARM64
-          - runner: windows-2025
-            arch: X64
-          - runner: windows-11-arm
-            arch: ARM64
-          - runner: macos-15
-            arch: ARM64
+    name: Rust (ubuntu-24.04)
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Verify runner architecture
+          fetch-depth: 0
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-rust-1.88-check-default-debug-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'crates/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-rust-1.88-check-default-debug-
+      - id: scope
+        name: Classify changed paths without skipping the required check
         env:
-          EXPECTED_ARCH: ${{ matrix.arch }}
-        run: test "$RUNNER_ARCH" = "$EXPECTED_ARCH"
-      - name: Install Linux build prerequisites
-        if: runner.os == 'Linux'
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libxkbcommon-dev libwayland-dev
-      - name: Verify locked build and tests
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "run_rust=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base="$BASE_SHA"
+          if [[ "$EVENT_NAME" == "push" ]]; then base="$BEFORE_SHA"; fi
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+            echo "run_rust=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+          if [[ -z "$changed" ]]; then
+            echo "run_rust=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if while IFS= read -r path; do
+            case "$path" in
+              *.md|docs/*|CITATION.cff|AUTHORS|LICENSE*) ;;
+              *) exit 1 ;;
+            esac
+          done <<< "$changed"; then
+            echo "run_rust=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_rust=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify manifests and source format
+        if: steps.scope.outputs.run_rust == 'true'
         run: |
-          cargo --version
+          cargo metadata --locked --no-deps --format-version 1 > /dev/null
           cargo fmt --all -- --check
-          cargo check --locked --all-targets
-          cargo tree --locked
-          cargo test --locked
-          cargo clippy --locked --all-targets -- -D warnings
-      - name: Verify Rust documentation and crate archives
-        if: runner.os == 'Linux' && matrix.arch == 'X64'
-        env:
-          RUSTDOCFLAGS: -D warnings
+      - name: Verify default GUI and headless targets
+        if: steps.scope.outputs.run_rust == 'true'
         run: |
-          cargo doc --locked --no-deps
-          bash scripts/check-crate-packages.sh
+          cargo check --locked --workspace --all-targets
+          cargo test --locked --workspace
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Validate capability registry and package manifests
+        run: |
+          python3 -m json.tool docs/capabilities.json > /dev/null
+          cargo tree --locked > /dev/null
