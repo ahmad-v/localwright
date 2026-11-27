@@ -333,3 +333,26 @@ All changes remain on the existing open PRs and are unmerged. GitHub is canonica
 - The Data architecture remains partial: the ordinary table/transformation path is still string-backed, the typed pipeline is opt-in, and typed join/aggregation cover only the new inner-join and single-key sum/mean routes. A virtualized typed table, schema editor, typed outer joins, richer pipelines and undo/redo remain.
 - File still needs stable volume identity/incremental scanning and integrated duplicate, archive, privacy and integrity workflows. Document still needs broader format routing, visual page selection/zoom, OCR and document-structure workflows; current PDF preview is not a sandbox. Speech still needs broader decoding, transcript synchronization, recording, offline model packaging, multilingual/reference validation, WER/CER and device testing. Localwright still needs fuller accessibility, system appearance, workspace and reusable table coverage.
 - The current changes do not complete or verify all v1.3 groups. No release, crate publication or merge was performed. The five current PR heads and workflow states should be refreshed before the next integration decision; queued/cancelled macOS jobs do not count as Apple Silicon verification.
+
+## Coordinated shared-workspace integration — 27 November 2026
+
+### Merged, verified implementation
+
+| Repository | Main revision | Integration result |
+|---|---|---|
+| Localwright | `eccef00f6011207e7e67dd86bb4741cdcca1bf0a` (PR #21) | Added bounded native tabular rendering for structured operation previews, with byte/row/column/cell limits, safe fallback to text, and malformed/oversized input tests. Quick, Linux GUI/headless Integration, and Linux x64, Linux ARM64, Windows x64, Windows ARM64, and Apple Silicon checks passed. Multiple project tabs (PR #19) and keyboard panel resizing (PR #20) are also in main. |
+| Data Studio | `d3e491ddc24eefced5d7db3a30df43fe46dcb943` (PR #18) | Common text predicates, comparison filters, row windows, and exact collision-checked deduplication now use typed columns on ordinary CSV/TSV/Parquet routes. Quick, Integration, and all five native targets passed on the tested feature head. This is a migration increment; the full processing/statistics/UI path is not yet typed. |
+| File Studio | `c20fbee2e984347fa79a67b4140e66243640b1c3` (PR #13) | Native catalogue creation is integrated with save/root pickers, scan progress, cancellation, and history. Quick and Integration passed on the tested head. |
+| Speech Studio | `6d148ff9b2558d9aa15262b46ccf0086a2b480af` (PR #12) | Consumer dependency pin to the merged Localwright runtime/workspace baseline. Quick and Integration passed; existing device playback remains hardware-dependent. |
+
+### Current review branches
+
+- Localwright PR #21 is merged; all four studio dependency manifests, lockfiles, compatibility records, and license provenance records now target exact Localwright revision `eccef00f6011207e7e67dd86bb4741cdcca1bf0a`.
+- File Studio PR #14: shared dependency pin; PR #15: Windows volume serial + root directory file-index identity. Windows/API verification is required for #15. Both are open.
+- Data Studio PR #19: shared dependency pin. Its Quick check passed; integration/native compatibility checks are running.
+- Document Studio PR #10: native PDF opening/recent paths, bounded Hayro preview, page selection, and safe selected-page extraction to a new path. The `items_after_test_module` Clippy failure on the earlier head was fixed by moving the viewer runner before tests. Quick and Integration pass on `d12ce08`; native target checks were still in progress at checkpoint.
+- Speech Studio PR #13: shared pin plus clickable waveform seek with bounded click mapping and focused unit test. The model test passed locally with `--no-default-features`; strict headless Clippy and formatting passed. A playback-feature compile could not initialize `alsa-sys` because the local image lacks the ALSA development package. Physical device output is unverified; hosted default GUI/Integration/native checks are required.
+
+### Remaining v1.3 boundaries
+
+Do not describe the ecosystem as complete. Data Studio still needs typed processing to become the default across imports, transformations, statistics and the editable large-data workspace. File Studio still needs broader archive/privacy/integrity workflows and robust filesystem edge-case coverage. Document Studio still needs broader conversion/EPUB/structured editing/OCR workflows and representative PDF corpus verification. Speech Studio still needs broader decoding, recording, ASR distribution and multilingual reference validation. Localwright still needs deeper accessibility, appearance detection and scientific figure/palette work. App IDs, publication and releases remain explicitly deferred. Cancelled or queued checks do not count as platform passes.
