@@ -169,11 +169,7 @@ fn preview_table(report: &str) -> Option<PreviewTable> {
         .and_then(serde_json::Value::as_u64)
         .and_then(|rows| usize::try_from(rows).ok())
         .unwrap_or(rows.len());
-    let warnings = report[consumed..]
-        .trim()
-        .chars()
-        .take(2048)
-        .collect();
+    let warnings = report[consumed..].trim().chars().take(2048).collect();
     Some(PreviewTable {
         headers,
         rows,
@@ -200,9 +196,11 @@ fn preview_table_view(table: PreviewTable) -> Element<'static, Message> {
         cells.extend(values.into_iter().map(preview_table_cell));
         lines.push(row(cells).spacing(1).into());
     }
-    let mut content = column![
-        text(format!("Showing {} of {} rows", lines.len().saturating_sub(1), table.total_rows))
-    ]
+    let mut content = column![text(format!(
+        "Showing {} of {} rows",
+        lines.len().saturating_sub(1),
+        table.total_rows
+    ))]
     .spacing(6);
     if !table.warnings.is_empty() {
         content = content.push(text(table.warnings).wrapping(text::Wrapping::WordOrGlyph));
@@ -1102,10 +1100,9 @@ mod tests {
             "preview": vec![vec![""; 128]; 65]
         });
         assert!(preview_table(&too_many_cells.to_string()).is_none());
-        assert!(preview_table(
-            r#"{"rows":1,"headers":["a","b"],"preview":[["only one"]]}"#
-        )
-        .is_none());
+        assert!(
+            preview_table(r#"{"rows":1,"headers":["a","b"],"preview":[["only one"]]}"#).is_none()
+        );
         assert!(preview_table("ordinary textual result").is_none());
     }
 
