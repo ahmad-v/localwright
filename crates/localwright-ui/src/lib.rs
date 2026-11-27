@@ -294,7 +294,7 @@ impl State {
         let current = i16::from(self.preferences.panel_ratio);
         let next = (current + i16::from(delta)).clamp(20, 70) as u8;
         if next == self.preferences.panel_ratio {
-            self.status = format!("Controls pane is at its {}% limit", next);
+            self.status = format!("Controls pane is at its {next}% limit");
             return;
         }
         self.preferences.panel_ratio = next;
