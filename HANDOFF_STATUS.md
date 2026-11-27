@@ -124,3 +124,24 @@ At this checkpoint, 1 of the original 12 acceptance gates in section 14 of the m
 - File Studio `ffd842b` adds saved inventory comparison and filesystem timestamps. Fourteen Linux headless tests passed.
 - Data Studio `964628c` adds drop-missing, fill-missing and rename-column to the direct workbench and versioned project runner. Sixteen Linux headless tests passed.
 - Strict Clippy passed in all three repositories. Hosted checks were dispatched for the three commits.
+
+## Follow-up ten-operation increment
+
+The `codex/next-ten` branches are based on the merged `origin/main` heads. This increment adds ten operation routes in four studios:
+
+1. File Studio versioned SHA-256 manifest creation.
+2. File Studio manifest verification with matching, changed and missing paths.
+3. File Studio recursive ZIP creation from regular files.
+4. File Studio bounded whole-archive ZIP extraction with path and entry checks.
+5. Data Studio left outer join.
+6. Data Studio right outer join.
+7. Data Studio full outer join.
+8. Document Studio selected PDF page deletion.
+9. Speech Studio LRC lyric import.
+10. Speech Studio LRC lyric export.
+
+Commits and review requests: File Studio `755f955`, PR [#8](https://github.com/ahmad-v/file-studio/pull/8); Data Studio `b9eb888` and right-order follow-up `199a286`, PR [#8](https://github.com/ahmad-v/data-studio/pull/8); Document Studio `e5e47f6`, PR [#7](https://github.com/ahmad-v/document-studio/pull/7); Speech Studio `bc24eee`, PR [#7](https://github.com/ahmad-v/speech-studio/pull/7); Localwright documentation `283ce5e` and `ac12157`, PR [#6](https://github.com/ahmad-v/localwright/pull/6). The five PRs are open while hosted checks run.
+
+Linux locked headless tests passed for File Studio (16 tests), Data Studio (18), Document Studio (10), and Speech Studio (13). Strict Clippy passed for all four. The Data Studio run used its declared Rust 1.95.0 toolchain installed only in temporary storage; other local checks used Rust 1.88.0. Registry JSON parses and `git diff --check` passes. File, Speech and Document test runs used `--no-default-features`; native GUI and optional OCR/ASR configurations were not reverified in this increment. The preceding merged-main workflows also completed successfully: Localwright `45946447646`, File Studio `45946455087`, Data Studio `45946454919`, Document Studio `45946455388`, and Speech Studio `45946455692`. These runs cover revisions before this increment. Push the four studio branches, run hosted checks, and update this handoff with their final results and PR/merge commits.
+
+The ten operations have Linux fixture evidence, but they do not close ten broad v1.3 checklist rows. Their parent requirement groups remain partial because each includes additional features and platform/install acceptance evidence. Existing totals remain 45 partial, 5 open, and 2 deferred; the section 14 source-integrity gate remains the only fully verified acceptance gate.

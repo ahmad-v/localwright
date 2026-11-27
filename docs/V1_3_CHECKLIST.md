@@ -13,20 +13,20 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 04 | Read-only signature inspection, MIME, timestamps, encoding, hex and extraction | Partial | Signature, size and filesystem timestamp reporting and bounded hex/ASCII inspection exist. Rich inspection remains. |
 | 04 | Metadata inspection, export, editing and copy-on-write sanitation | Partial | PNG chunk inspection and selective text/EXIF removal passed independent checks. Broader metadata editing remains. |
 | 04 | Catalogue, disconnected volume search, scan history and QR labels | Partial | Saved JSON inventory search and comparison work with the source disconnected. Indexed catalogues, volume identity, history and QR labels remain. |
-| 04 | File hashes, manifest handling and PAR2 | Partial | SHA-256, SHA-512 and BLAKE3 are checked. Manifest and recovery workflows remain. |
+| 04 | File hashes, manifest handling and PAR2 | Partial | SHA-256, SHA-512 and BLAKE3 checks plus versioned SHA-256 manifest create/verify have Linux fixtures. Authenticated signatures and PAR2 recovery remain. |
 | 04 | Duplicate detection, usage and previewable organization | Partial | Duplicate and usage fixtures pass. Rename preview and undo remain. |
-| 04 | Safe archive listing, testing, extraction and creation | Partial | ZIP listing, integrity, single-file creation, and selected-entry extraction have Linux fixtures. Whole-archive tree operations and broader formats remain. |
+| 04 | Safe archive listing, testing, extraction and creation | Partial | ZIP listing, integrity, single-file and directory creation, selected-entry and bounded whole-archive extraction have Linux fixtures. Empty directories, filesystem metadata and broader archive formats remain. |
 | 04 | Authenticated encryption and signature workflows | Open | Select and review existing libraries. |
 | 04 | Directional file format targets and reports | Partial | Limited format detection and JSON/CSV. Broader operation fixtures remain. |
 | 05 | Data import, native preview and schema handling | Partial | CSV, TSV, XLSX and a narrow Parquet path. Types and virtualization remain. |
-| 05 | Data transformation | Partial | Filter, select, sort, deduplicate, bounded inner joins, grouped summaries, column renaming and missing-value transforms have fixtures. Outer joins, wider aggregation, pivot and other transformations remain. |
+| 05 | Data transformation | Partial | Filter, select, sort, deduplicate, bounded inner/left/right/full joins, grouped summaries, column renaming and missing-value transforms have Linux fixtures. Wider aggregation, pivot and other transformations remain. |
 | 05 | Statistical methods and reproducible analysis | Partial | Numeric summaries, Pearson correlation, simple least-squares regression and bounded SQLite SELECT work on Linux fixtures. Inferential tests, intervals and broader analysis remain. |
 | 05 | Native charts and scientific export | Partial | Vector scatter and line charts exist. Plot variety and accessible raster and vector output remain. |
 | 05 | Projects, provenance, undo and batch pipelines | Partial | Version 1 single-table project replay passed tests. Authoring UI, full provenance, undo and multi-input batch remain. |
 | 05 | Data masking and pseudonymization | Partial | Fixed-mask column preview and copy export pass Linux fixtures. Broader policy rules and pseudonymization remain. |
 | 05 | Directional data formats and reports | Partial | Narrow table formats exist. Scientific and other later targets follow the specification. |
 | 06 | Document conversion, layout and legacy filters | Partial | Basic generated DOCX. Office fidelity and structured conversion remain. |
-| 06 | PDF structural operations and native rendering | Partial | Text extraction, split and reorder have fixture coverage. Rendering and remaining edits are open. |
+| 06 | PDF structural operations and native rendering | Partial | Text extraction, split, reorder, rotation and selected-page deletion have fixtures. Rendering and remaining edits are open; structural edits may drop document-level objects and do not sanitize active content. |
 | 06 | Private OCR and independently verified searchable PDF | Partial | The Linux app-relative Tesseract CLI passed text and searchable PDF checks, including independent text and original-image verification. Wider inputs and platform packs remain. |
 | 06 | Publishing, citations and safe e-book workflows | Open | Typst or equivalent, bibliography and EPUB require fixture-backed routes. |
 | 06 | Document comparison, indexing and metadata | Partial | Bounded UTF-8 line comparison passed integration and CLI tests. Structural/visual comparison and indexing remain. |
@@ -36,7 +36,7 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 07 | VAD, linguistic analysis and truthful model estimates | Open | Add verified analysis capabilities and measurable quality fixtures. |
 | 07 | Offline aligned translation | Open | Review a local backend and model licenses. |
 | 07 | Offline narration and chaptered exports | Open | Review TTS engines, voices and applicable licenses. |
-| 07 | Audio preparation and directional media formats | Partial | WAV preparation at four input rates and narrow subtitles have Linux fixtures. Wider codecs and independent playback verification remain. |
+| 07 | Audio preparation and directional media formats | Partial | WAV preparation at four input rates, SRT/VTT and duration-lossy LRC exchange have Linux fixtures. Wider codecs and independent playback verification remain. |
 | 08 | Twenty themes, appearance settings and customization | Partial | Twenty presets and per-app theme and scale persistence are implemented. System theme behavior and full customization remain. |
 | 08 | Accessibility, localization and desktop input | Partial | Scale and contrast coverage exist. Screen readers, dialogs, full focus and keyboard checks remain. |
 | 09 | Scientific palettes and accessible figures | Partial | Data Studio exports shared monochrome SVG scatter and line charts. Verified palette metadata and publication controls remain. |
