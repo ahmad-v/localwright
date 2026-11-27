@@ -51,13 +51,10 @@ impl PersistedProjectTabs {
     }
 
     pub fn next_id(&self) -> u64 {
-        self.tabs
-            .iter()
-            .map(|tab| tab.id)
-            .max()
-            .unwrap_or(0)
-            .saturating_add(1)
-            .max(1)
+        let used = self.tabs.iter().map(|tab| tab.id).collect::<HashSet<_>>();
+        (1..=(MAX_PROJECT_TABS as u64 + 1))
+            .find(|candidate| !used.contains(candidate))
+            .unwrap_or(1)
     }
 }
 
@@ -121,5 +118,24 @@ mod tests {
             active_id: Some(1),
         };
         assert!(too_many.validate().is_err());
+    }
+
+    #[test]
+    fn next_identifier_skips_used_ids_without_overflowing() {
+        let saved = PersistedProjectTabs {
+            tabs: vec![
+                PersistedProjectTab {
+                    id: 1,
+                    title: "First".into(),
+                },
+                PersistedProjectTab {
+                    id: u64::MAX - 1,
+                    title: "Near limit".into(),
+                },
+            ],
+            active_id: Some(u64::MAX - 1),
+        };
+        saved.validate().unwrap();
+        assert_eq!(saved.next_id(), 2);
     }
 }
