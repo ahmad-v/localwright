@@ -2,9 +2,7 @@ use iced::{
     widget::{column, text},
     Element, Length, Task,
 };
-use localwright_ui::{
-    paginated_table, CellValue, SortDirection, TableAction, TableModel, TableState,
-};
+use localwright_ui::{paginated_table, CellValue, TableAction, TableModel, TableState};
 
 struct TableDemo {
     table: TableModel,
@@ -23,10 +21,6 @@ impl TableDemo {
                 self.state.set_page(page, self.table.row_count());
             }
             Message::Table(TableAction::SortBy { column, direction }) => {
-                let direction = match direction {
-                    SortDirection::Ascending => SortDirection::Ascending,
-                    SortDirection::Descending => SortDirection::Descending,
-                };
                 if self.table.sort_by(column, direction).is_ok() {
                     self.state.set_sort(column, direction);
                 }
