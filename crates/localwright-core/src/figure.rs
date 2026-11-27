@@ -1,10 +1,53 @@
 //! Minimal print-oriented vector figure export, separate from UI theme.
 use crate::{write_bytes, Error, Result};
 use std::{fmt::Write, path::Path};
+
+/// Marker geometry for monochrome-safe and color-vision-accessible figures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Marker {
+    Circle,
+    Square,
+    Triangle,
+    Diamond,
+    Cross,
+}
+
+/// A reusable print-oriented style for a scientific series.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SeriesStyle {
+    /// CSS color; only validated `#RRGGBB` values are accepted.
+    pub color: &'static str,
+    pub marker: Marker,
+    /// Use a dashed line to distinguish series without relying on color.
+    pub dashed: bool,
+}
+
+impl SeriesStyle {
+    /// A black, solid circle style suitable for monochrome export.
+    pub const MONOCHROME: Self = Self {
+        color: "#000000",
+        marker: Marker::Circle,
+        dashed: false,
+    };
+
+    fn validate(self) -> Result<Self> {
+        let bytes = self.color.as_bytes();
+        if bytes.len() != 7 || bytes[0] != b'#' || !bytes[1..].iter().all(u8::is_ascii_hexdigit) {
+            return Err(Error::input("Series color must be a #RRGGBB value"));
+        }
+        Ok(self)
+    }
+}
 /// Render a monochrome scatterplot with explicit axes and no raster content.
 /// Points are in data units. The plot uses fixed margins and labels numeric bounds.
 pub fn scatter_svg(points: &[(f64, f64)], width: u32, height: u32) -> Result<String> {
-    plot_svg(points, width, height, PlotKind::Scatter)
+    plot_svg(
+        points,
+        width,
+        height,
+        PlotKind::Scatter,
+        SeriesStyle::MONOCHROME,
+    )
 }
 
 /// Render a monochrome line chart connecting points in supplied order.
@@ -12,7 +55,35 @@ pub fn line_svg(points: &[(f64, f64)], width: u32, height: u32) -> Result<String
     if points.len() < 2 {
         return Err(Error::input("A line chart requires at least two points"));
     }
-    plot_svg(points, width, height, PlotKind::Line)
+    plot_svg(
+        points,
+        width,
+        height,
+        PlotKind::Line,
+        SeriesStyle::MONOCHROME,
+    )
+}
+
+/// Render a scatter plot with a validated color and a non-color marker channel.
+pub fn scatter_svg_styled(
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    style: SeriesStyle,
+) -> Result<String> {
+    let style = style.validate()?;
+    plot_svg(points, width, height, PlotKind::Scatter, style)
+}
+
+/// Render a line plot with color and dash pattern as independent series channels.
+pub fn line_svg_styled(
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    style: SeriesStyle,
+) -> Result<String> {
+    let style = style.validate()?;
+    plot_svg(points, width, height, PlotKind::Line, style)
 }
 
 enum PlotKind {
@@ -20,7 +91,13 @@ enum PlotKind {
     Line,
 }
 
-fn plot_svg(points: &[(f64, f64)], width: u32, height: u32, kind: PlotKind) -> Result<String> {
+fn plot_svg(
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    kind: PlotKind,
+    style: SeriesStyle,
+) -> Result<String> {
     if points.is_empty()
         || points.len() > 10000
         || !(200..=4000).contains(&width)
@@ -71,11 +148,71 @@ fn plot_svg(points: &[(f64, f64)], width: u32, height: u32, kind: PlotKind) -> R
     match kind {
         PlotKind::Scatter => {
             for (px, py) in coordinates {
-                let _ = write!(s, r#"<circle cx="{px:.3}" cy="{py:.3}" r="3"/>"#);
+                match style.marker {
+                    Marker::Circle => {
+                        let _ = write!(
+                            s,
+                            r#"<circle cx="{px:.3}" cy="{py:.3}" r="3" fill="{}"/>"#,
+                            style.color
+                        );
+                    }
+                    Marker::Square => {
+                        let _ = write!(
+                            s,
+                            r#"<rect x="{:.3}" y="{:.3}" width="6" height="6" fill="{}"/>"#,
+                            px - 3.0,
+                            py - 3.0,
+                            style.color
+                        );
+                    }
+                    Marker::Triangle => {
+                        let _ = write!(
+                            s,
+                            r#"<path d="M {px:.3} {:.3} L {:.3} {:.3} L {:.3} {:.3} Z" fill="{}"/>"#,
+                            py - 4.0,
+                            px + 4.0,
+                            py + 3.0,
+                            px - 4.0,
+                            py + 3.0,
+                            style.color
+                        );
+                    }
+                    Marker::Diamond => {
+                        let _ = write!(
+                            s,
+                            r#"<path d="M {px:.3} {:.3} L {:.3} {py:.3} L {px:.3} {:.3} L {:.3} {py:.3} Z" fill="{}"/>"#,
+                            py - 4.0,
+                            px + 4.0,
+                            py + 4.0,
+                            px - 4.0,
+                            style.color
+                        );
+                    }
+                    Marker::Cross => {
+                        let _ = write!(
+                            s,
+                            r#"<path d="M {:.3} {py:.3} H {:.3} M {px:.3} {:.3} V {:.3}" stroke="{}"/>"#,
+                            px - 3.0,
+                            px + 3.0,
+                            py - 3.0,
+                            py + 3.0,
+                            style.color
+                        );
+                    }
+                }
             }
         }
         PlotKind::Line => {
-            s.push_str(r#"<polyline stroke-width="2" points=""#);
+            let dash = if style.dashed {
+                " stroke-dasharray=\"7 4\""
+            } else {
+                ""
+            };
+            let _ = write!(
+                s,
+                r#"<polyline stroke="{}" stroke-width="2"{} points=""#,
+                style.color, dash
+            );
             for (px, py) in coordinates {
                 let _ = write!(s, " {px:.3},{py:.3}");
             }
@@ -140,5 +277,30 @@ mod tests {
         assert_eq!(s.matches("<circle").count(), 2);
         assert!(!s.contains("<image"));
         assert!(scatter_svg(&[(1., 2.)], 640, 480).is_err());
+    }
+
+    #[test]
+    fn accessible_series_style_uses_marker_and_dash_channels() {
+        let style = SeriesStyle {
+            color: "#336699",
+            marker: Marker::Diamond,
+            dashed: true,
+        };
+        let scatter = scatter_svg_styled(&[(0., 0.), (1., 2.)], 640, 480, style).unwrap();
+        assert!(scatter.contains("<path d=\"M "));
+        assert!(scatter.contains("fill=\"#336699\""));
+        let line = line_svg_styled(&[(0., 0.), (1., 2.)], 640, 480, style).unwrap();
+        assert!(line.contains("stroke-dasharray=\"7 4\""));
+        assert!(line.contains("stroke=\"#336699\""));
+        assert!(scatter_svg_styled(
+            &[(0., 0.), (1., 2.)],
+            640,
+            480,
+            SeriesStyle {
+                color: "red\" onload=\"x",
+                ..style
+            }
+        )
+        .is_err());
     }
 }

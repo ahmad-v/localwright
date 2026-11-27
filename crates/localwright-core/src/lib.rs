@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
+pub mod engine;
 pub mod figure;
 use serde::{Deserialize, Serialize};
 use std::{

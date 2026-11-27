@@ -1,4 +1,4 @@
-use super::{SCALES, THEMES};
+use super::{ShortcutRegistry, SCALES, THEMES};
 use localwright_core::{read_bounded, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -15,6 +15,15 @@ pub(super) struct Preferences {
     schema_version: u32,
     pub theme: String,
     pub scale: u16,
+    /// Sidebar width as a percentage of the available workspace width.
+    #[serde(default = "default_panel_ratio")]
+    pub panel_ratio: u8,
+    #[serde(default)]
+    pub shortcuts: ShortcutRegistry,
+}
+
+fn default_panel_ratio() -> u8 {
+    34
 }
 
 impl Default for Preferences {
@@ -23,6 +32,8 @@ impl Default for Preferences {
             schema_version: 1,
             theme: "Modern Light".into(),
             scale: 100,
+            panel_ratio: default_panel_ratio(),
+            shortcuts: ShortcutRegistry::default(),
         }
     }
 }
@@ -59,9 +70,11 @@ impl Preferences {
         if self.schema_version != 1
             || !THEMES.iter().any(|preset| preset.0 == self.theme)
             || !SCALES.contains(&self.scale)
+            || !(20..=70).contains(&self.panel_ratio)
         {
             return Err(Error::input("Unsupported workbench preferences"));
         }
+        self.shortcuts.validate()?;
         Ok(())
     }
 }
@@ -121,5 +134,37 @@ mod tests {
         assert!(app_preferences_path("../other").is_none());
         assert!(app_preferences_path("").is_none());
         assert!(app_preferences_path("directory/app").is_none());
+    }
+
+    #[test]
+    fn loads_v1_appearance_preferences_without_shortcuts() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("app/workbench.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            br#"{"schema_version":1,"theme":"Modern Light","scale":100}"#,
+        )
+        .unwrap();
+        let loaded = Preferences::load(&path).unwrap();
+        assert_eq!(loaded.shortcuts, ShortcutRegistry::default());
+        assert_eq!(loaded.panel_ratio, 34);
+    }
+
+    #[test]
+    fn validates_persisted_workspace_panel_bounds() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("app/workbench.json");
+        let mut prefs = Preferences {
+            panel_ratio: 71,
+            ..Preferences::default()
+        };
+        assert!(prefs.save(&path).is_err());
+        prefs.panel_ratio = 20;
+        prefs.save(&path).unwrap();
+        assert_eq!(Preferences::load(&path).unwrap().panel_ratio, 20);
+        prefs.panel_ratio = 70;
+        prefs.save(&path).unwrap();
+        assert_eq!(Preferences::load(&path).unwrap().panel_ratio, 70);
     }
 }

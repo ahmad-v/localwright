@@ -38,6 +38,33 @@
       "status": "implemented-unverified",
       "targets": [],
       "fixture_status": "not run"
+    },
+    {
+      "operation": "private-engine-runtime",
+      "description": "Versioned private engine discovery, SHA-256 verification, bounded execution, health checks, timeouts and process-group cancellation; no OS sandbox or hard CPU/memory quotas.",
+      "status": "implemented-unverified",
+      "targets": [
+        "x86_64-unknown-linux-gnu"
+      ],
+      "fixture_status": "8 core tests and workspace target compile passed locally; native matrix pending"
+    },
+    {
+      "operation": "native-file-dialogs",
+      "description": "Asynchronous native input-file selection and output-save selection in the shared workbench; Linux uses XDG Desktop Portal with zenity fallback.",
+      "status": "implemented-unverified",
+      "targets": [
+        "x86_64-unknown-linux-gnu"
+      ],
+      "fixture_status": "Linux workspace compile passed; dialog interaction and native matrix pending"
+    },
+    {
+      "operation": "configurable-shortcuts",
+      "description": "Validated Run/Cancel key selection, collision rejection, platform-aware dispatch, bounded JSON customization and saved preferences.",
+      "status": "implemented-unverified",
+      "targets": [
+        "x86_64-unknown-linux-gnu"
+      ],
+      "fixture_status": "17 unit tests and workspace compile passed; native-device interaction pending"
     }
   ]
 }
