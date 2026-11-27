@@ -45,7 +45,8 @@ impl Preferences {
             Err(error) => return Err(error.into()),
             Ok(_) => {}
         }
-        let settings: Self = serde_json::from_slice(&read_bounded(path, MAX_BYTES)?)?;
+        let mut settings: Self = serde_json::from_slice(&read_bounded(path, MAX_BYTES)?)?;
+        settings.shortcuts.add_missing_defaults();
         settings.validate()?;
         Ok(settings)
     }
@@ -149,6 +150,27 @@ mod tests {
         let loaded = Preferences::load(&path).unwrap();
         assert_eq!(loaded.shortcuts, ShortcutRegistry::default());
         assert_eq!(loaded.panel_ratio, 34);
+    }
+
+    #[test]
+    fn adds_new_panel_shortcuts_to_existing_shortcut_preferences() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("app/workbench.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            br#"{"schema_version":1,"theme":"Modern Light","scale":100,"shortcuts":{"bindings":{"run":{"key":"enter","command":true},"cancel":{"key":"escape"}}}}"#,
+        )
+        .unwrap();
+        let loaded = Preferences::load(&path).unwrap();
+        assert!(loaded
+            .shortcuts
+            .binding(super::super::ShortcutCommand::NarrowControls)
+            .is_some());
+        assert!(loaded
+            .shortcuts
+            .binding(super::super::ShortcutCommand::WidenControls)
+            .is_some());
     }
 
     #[test]
