@@ -52,7 +52,7 @@ jobs:
             cargo install --locked --version "$CARGO_CYCLONEDX_VERSION" cargo-cyclonedx
           fi
       - name: Audit locked dependencies against RustSec
-        run: cargo audit --locked
+        run: cargo audit --file Cargo.lock
       - name: Generate CycloneDX SBOM and license metadata inventory
         if: github.event_name == 'workflow_dispatch'
         run: |
