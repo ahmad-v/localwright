@@ -579,8 +579,8 @@ impl State {
                 tab.title.clone()
             };
             project_tabs =
-                project_tabs.push(button(label).on_press(Message::ActivateProject(tab.id)));
-            let close = button(format!("Close {}", tab.title));
+                project_tabs.push(button(text(label)).on_press(Message::ActivateProject(tab.id)));
+            let close = button(text(format!("Close {}", tab.title)));
             project_tabs = project_tabs.push(if self.projects.len() > 1 {
                 close.on_press(Message::CloseProject(tab.id))
             } else {
