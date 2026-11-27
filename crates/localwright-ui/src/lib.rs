@@ -986,7 +986,7 @@ mod tests {
         assert_eq!(state.active_project().input, "first.csv");
         assert_eq!(state.active_project().parameter, "first parameter");
         assert_eq!(state.active_project().preview, "first result");
-        assert_eq!(state.active_project().editor.text(), "first draft");
+        assert_eq!(state.active_project().editor.text(), "first draft\n");
         state.active_project = second;
         assert_eq!(state.active_project().input, "second.csv");
         assert_eq!(state.active_project().preview, "second result");
