@@ -7,12 +7,13 @@ fn handle(r: Request, j: Job) -> Result<Outcome> {
     })
 }
 fn main() -> iced::Result {
-    localwright_ui::run(
+    localwright_ui::run_with_saved_appearance(
         "Independent text counter",
+        "localwright-text-counter",
         &[Operation {
             id: "count",
             label: "Count",
-            hint: "Enter text, then use + Project to keep multiple independent workspaces open. Switch tabs with Ctrl+Tab or Ctrl+Shift+Tab.",
+            hint: "Enter text, then use + Project to keep multiple independent workspaces open. Switch tabs with Ctrl+Tab or Ctrl+Shift+Tab. Hide or restore the toolbar from View; the preference is saved between launches.",
         }],
         handle,
     )

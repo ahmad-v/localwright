@@ -17,6 +17,8 @@ pub enum WorkbenchCommand {
     ShowDraft,
     /// Display the registered keyboard shortcuts.
     ShowShortcuts,
+    /// Toggle the common action toolbar.
+    ToggleToolbar,
 }
 
 /// Menu containing a workbench command.
@@ -92,6 +94,12 @@ pub const COMMAND_REGISTRY: &[CommandDescriptor] = &[
         menu: CommandMenu::Help,
         toolbar: false,
     },
+    CommandDescriptor {
+        command: WorkbenchCommand::ToggleToolbar,
+        label: "Toggle toolbar",
+        menu: CommandMenu::View,
+        toolbar: false,
+    },
 ];
 
 impl CommandMenu {
@@ -125,7 +133,7 @@ mod tests {
             assert!(!descriptor.label.is_empty());
             assert!(CommandMenu::all().contains(&descriptor.menu));
         }
-        assert_eq!(commands.len(), 7);
+        assert_eq!(commands.len(), 8);
         assert!(COMMAND_REGISTRY.iter().any(|item| item.toolbar));
     }
 }
