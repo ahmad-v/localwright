@@ -356,3 +356,46 @@ All changes remain on the existing open PRs and are unmerged. GitHub is canonica
 ### Remaining v1.3 boundaries
 
 Do not describe the ecosystem as complete. Data Studio still needs typed processing to become the default across imports, transformations, statistics and the editable large-data workspace. File Studio still needs broader archive/privacy/integrity workflows and robust filesystem edge-case coverage. Document Studio still needs broader conversion/EPUB/structured editing/OCR workflows and representative PDF corpus verification. Speech Studio still needs broader decoding, recording, ASR distribution and multilingual reference validation. Localwright still needs deeper accessibility, appearance detection and scientific figure/palette work. App IDs, publication and releases remain explicitly deferred. Cancelled or queued checks do not count as platform passes.
+
+## Shared integration checkpoint — 27 November 2026 (20:38 UTC)
+
+This is a continuation of the v1.3 implementation, not a completion declaration. IDs and publication remain deferred. The detailed section checklist remains in `docs/V1_3_CHECKLIST.md`; cancelled/skipped CI jobs are not evidence of a pass.
+
+### Merged functional increments
+
+| Repository | Main revision | Functional changes and evidence |
+|---|---|---|
+| Localwright | `e57e8395c566ad0b289196e771cbe43f4bd6c463` (PR #23) | Persistent toolbar preference, View-menu toggle, sidebar control, settings migration, persisted preference tests and updated independent consumer example. Check, Integration and all five target checks succeeded. Earlier merged PRs provide multiple project tabs, keyboard panel resizing and bounded result tables. |
+| File Studio | `9ac13e89d142d5c6c49723d5f61d8e4cfea418e7` (PR #16) | SQLite catalogue snapshots can be compared from the native Catalogue workspace: added, removed, size-changed and same-size paths; reports stable source-identity match. Builds on the merged Windows stable volume/directory identity fix in PR #15 (`b9af509`). Focused snapshot fixture passed locally; PR #16 Check, Integration and five-target native validation passed. |
+| Data Studio | `994b6b4ee1d83d48c4fe6175c0ca06fa726e9e1f` (PR #20) | Added type-preserving `fill-missing`, `fill-forward` and `fill-backward` to ordinary CSV/TSV/Parquet routes and versioned typed projects. Single-column quantiles, standard error, Student-t interval and deterministic bootstrap routes now read typed scalars, exclude nulls and reject integers beyond exact `f64` conversion. Focused fill and statistics tests passed; strict headless Clippy passed; hosted Check, Integration and all five platform targets passed. This is a migration increment; typed processing and the editable table workspace remain incomplete. |
+| Document Studio | `afdf00374103fea6773d2db5f13fa7759be1aa0a` (PR #12) | Native PDF viewer rotates a selected page clockwise/counterclockwise into a new PDF, preserves the original, validates output path and supports cancellation. Focused rotation test and GUI check passed locally; Check, Integration and all five platform targets passed. |
+
+### Shared immutable dependency baseline
+
+Localwright main is `e57e8395c566ad0b289196e771cbe43f4bd6c463`. Data Studio PR #21 and Document Studio PR #13 updated manifests, lockfiles, compatibility records and license provenance to this exact revision; both are merged after Check, Integration and all five targets passed. File Studio PR #17 and Speech Studio PR #15 are updating the same immutable pins; verify their current heads and checks before merging. Do not publish Localwright to crates.io.
+
+### Current open feature work and verification boundaries
+
+- File Studio PR #17 (`de70b5d5b30ac27b4740bb825c3cead3f94e4f6e`): exact Localwright pin to `e57e839`. Quick Check passed. Integration and the five-target native workflow are running after applying both repository-specific workflow labels. Earlier canceled/skipped runs do not count.
+- Speech Studio PR #14 latest head `a7843425778eafd96e651f15a24fc6434eab6362`: multi-format native decoder for WAV, FLAC, MP3, OGG/Vorbis, AAC/M4A and AIFF; bounded actual decoded samples; offline path selection; synthetic decoder fixtures. Earlier heads failed for missing `Duration`/`rodio::Source` imports, borrowed decoder buffer lifetime, Ogg demuxer feature omission, and missing Ogg duration metadata. Those causes have code fixes in the current head: owned `Arc<[u8]>`, direct Symphonia `ogg` feature, optional duration handling and waveform rebinning. Current Check, Integration and five-target jobs are running. No decoder fixture pass or device playback claim is made until the current runs succeed.
+- Speech Studio PR #15 pins Localwright `e57e839`; current Quick/Integration/native verification is pending/in progress. Physical playback and recording remain hardware-unverified.
+
+The earlier Speech Studio Check failure run `46040626137` was a Clippy dead-code warning for the payload in `Message::Tick`; that issue was fixed in the earlier waveform increment. It is distinct from the current multi-format decoder failures described above.
+
+### Local verification from this batch
+
+- Data Studio: `typed_missing_fills_keep_scalar_types_and_distinct_null_semantics`, all four `typed_operations` integration tests, and `typed_statistics_exclude_nulls_and_reject_lossy_integer_conversion` passed. Strict `cargo clippy --locked --no-default-features --lib -- -D warnings` passed. Formatting, capability JSON and diff checks passed.
+- File Studio: stable identity test passed locally; saved-snapshot comparison fixture passed in its worktree. Broader GUI checks were stopped due shared Cargo target disk pressure; hosted PR #16 checks passed.
+- Document Studio: selected-page rotation unit test and `cargo check --locked --features gui --bin document-studio` passed locally; hosted PR #12 checks passed.
+- Speech Studio: formatting, locked metadata, feature tree and fixture file-format checks passed. Decoder tests initially could not compile locally because ALSA development metadata is absent. Use the hosted current-head results; do not infer codec or device verification from source presence.
+
+### Remaining v1.3 work
+
+The ecosystem is not complete. Data Studio still needs ordinary typed CSV/TSV/XLSX transformation migration, typed joins/aggregation across supported routes, and a native large-data editable table with filtering, schema inspection and undo/redo. File Studio still needs stable-volume reconciliation refinements, scan interruption/resume, duplicate inspection and integrated archive/privacy/integrity workspaces. Document Studio still needs thumbnails/zoom and broader visual page workflows, OCR integration, conversion routing, EPUB and structure-preservation/corpus validation. Speech Studio still needs this decoder matrix to pass, transcript timeline synchronization, recording/device workflows, multilingual offline ASR distribution/provenance and reference evaluation. Scientific palette/figure work, accessibility, system appearance, security review, SBOM/license closure and the 60 package/architecture distribution gate remain incomplete. Do not start v1.4 DoE or publish packages.
+
+### Exact continuation point
+
+1. Inspect the current head and terminal results for Speech PR #14; fix evidence-backed failures and rerun only the affected validation. Merge only after Quick, Integration and applicable five-target gates pass.
+2. Finish File PR #17 and Speech PR #15 against Localwright `e57e839`, then confirm all four consumer manifests/lockfiles refer to a reviewed immutable shared revision.
+3. Continue Data Studio’s default typed pipeline migration and a real paginated/virtualized typed table workspace; preserve legacy projects and verify XLSX bounds.
+4. Continue native File/Document/Speech workflows and scientific figures as separate coherent, tested batches. Refresh this section with exact commits and current workflow identifiers after the next integration milestone.
