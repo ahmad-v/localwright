@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 pub mod engine;
 pub mod figure;
+pub mod palettes;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},

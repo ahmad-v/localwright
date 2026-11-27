@@ -4,7 +4,7 @@ Localwright is a Rust toolkit for native, offline desktop tools. You can share a
 
 | Crate | Use it for |
 |---|---|
-| [localwright-core](crates/localwright-core/README.md) | Operation contracts, cooperative jobs, bounded file reads, no-overwrite writes, JSON settings, and SVG scientific figures with safe title and axis-label rendering |
+| [localwright-core](crates/localwright-core/README.md) | Operation contracts, cooperative jobs, bounded file reads, no-overwrite writes, JSON settings, labeled SVG figures, and three licensed scientific palettes |
 | [localwright-ui](crates/localwright-ui/README.md) | A native workbench with a background worker, previews, twenty themes, and UI scaling |
 
 The first crates.io release is being prepared as `0.1.0`. The four studios currently consume reviewed Git revisions independently of registry publication.
