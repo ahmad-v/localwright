@@ -1,15 +1,18 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 mod preferences;
+mod shortcuts;
 use iced::{
+    keyboard::{Key, Modifiers},
     theme::Palette,
     widget::{
         button, column, container, pick_list, row, scrollable, text, text_editor, text_input,
     },
-    Border, Color, Element, Length, Task, Theme,
+    Border, Color, Element, Length, Subscription, Task, Theme,
 };
 use localwright_core::{Error, ErrorKind, Handler, Job, Operation, Outcome, Request, Result};
 use preferences::{app_preferences_path, Preferences};
+pub use shortcuts::{ShortcutBinding, ShortcutCommand, ShortcutKey, ShortcutRegistry};
 use std::{fmt, path::PathBuf};
 
 /// A theme name followed by the RGB background, text, and accent colors.
@@ -147,8 +150,10 @@ enum Message {
     Edit(text_editor::Action),
     Theme(String),
     Scale(u16),
+    ShortcutKey(ShortcutCommand, String),
     Run,
     Cancel,
+    KeyPressed(Key, Modifiers),
     Done(Result<Outcome>),
 }
 impl State {
@@ -167,10 +172,32 @@ impl State {
                 self.preferences.scale = v;
                 self.save_preferences();
             }
+            Message::ShortcutKey(command, label) => {
+                if let (Some(key), Some(mut binding)) = (
+                    ShortcutKey::from_label(&label),
+                    self.preferences.shortcuts.binding(command).cloned(),
+                ) {
+                    binding.key = key;
+                    match self.preferences.shortcuts.set(command, binding) {
+                        Ok(()) => self.save_preferences(),
+                        Err(error) => {
+                            self.preferences_error =
+                                Some(format!("Shortcut was not changed: {error}"));
+                        }
+                    }
+                }
+            }
             Message::Cancel => {
                 if let Some(j) = &self.job {
                     j.cancel();
                     self.status = "Cancellation requested; waiting for operation".into();
+                }
+            }
+            Message::KeyPressed(key, modifiers) => {
+                match self.preferences.shortcuts.resolve(&key, modifiers) {
+                    Some(ShortcutCommand::Run) => return self.update(Message::Run),
+                    Some(ShortcutCommand::Cancel) => return self.update(Message::Cancel),
+                    None => {}
                 }
             }
             Message::Run => {
@@ -244,7 +271,7 @@ impl State {
                 .preferences
                 .save(path)
                 .err()
-                .map(|error| format!("Could not save appearance preferences: {error}"));
+                .map(|error| format!("Could not save workbench preferences: {error}"));
         }
     }
 
@@ -255,6 +282,7 @@ impl State {
         };
         let ops = self.ops.iter().map(OperationChoice).collect::<Vec<_>>();
         let themes = THEMES.iter().map(|t| t.0.to_owned()).collect::<Vec<_>>();
+        let shortcut_keys = shortcut_key_labels();
         let selected = ops.iter().copied().find(|o| o.0.id == self.selected);
         let hint = selected.map(|o| o.0.hint).unwrap_or("");
         let mut run = button("Run operation")
@@ -330,6 +358,32 @@ impl State {
                         .padding(8)
                         .style(input_style),
                     row![run, cancel].spacing(8).wrap(),
+                    row![
+                        text("Run shortcut"),
+                        pick_list(
+                            shortcut_keys.clone(),
+                            self.preferences
+                                .shortcuts
+                                .binding(ShortcutCommand::Run)
+                                .map(|binding| binding.key.label()),
+                            |label| Message::ShortcutKey(ShortcutCommand::Run, label)
+                        )
+                        .style(picker_style),
+                        text("Cancel shortcut"),
+                        pick_list(
+                            shortcut_keys,
+                            self.preferences
+                                .shortcuts
+                                .binding(ShortcutCommand::Cancel)
+                                .map(|binding| binding.key.label()),
+                            |label| Message::ShortcutKey(ShortcutCommand::Cancel, label)
+                        )
+                        .style(picker_style),
+                    ]
+                    .spacing(8)
+                    .align_y(iced::Alignment::Center)
+                    .wrap(),
+                    text(self.preferences.shortcuts.summary()),
                     text(status).wrapping(text::Wrapping::WordOrGlyph),
                     text("Result and warnings"),
                     text(&self.preview).wrapping(text::Wrapping::WordOrGlyph),
@@ -358,6 +412,19 @@ impl State {
         .height(Length::Fill)
         .into()
     }
+
+    fn subscription(&self) -> Subscription<Message> {
+        iced::keyboard::on_key_press(|key, modifiers| Some(Message::KeyPressed(key, modifiers)))
+    }
+}
+
+fn shortcut_key_labels() -> Vec<String> {
+    ["Enter", "Escape"]
+        .into_iter()
+        .map(str::to_owned)
+        .chain(('A'..='Z').map(|character| character.to_string()))
+        .chain(('0'..='9').map(|character| character.to_string()))
+        .collect()
 }
 
 fn picker_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
@@ -412,6 +479,7 @@ fn run_workbench(
         None => (Preferences::default(), None),
     };
     iced::application(title, State::update, State::view)
+        .subscription(State::subscription)
         .theme(|s: &State| preset(&s.preferences.theme))
         .scale_factor(|s: &State| f64::from(s.preferences.scale) / 100.0)
         .run_with(move || {

@@ -1,4 +1,4 @@
-use super::{SCALES, THEMES};
+use super::{ShortcutRegistry, SCALES, THEMES};
 use localwright_core::{read_bounded, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -15,6 +15,8 @@ pub(super) struct Preferences {
     schema_version: u32,
     pub theme: String,
     pub scale: u16,
+    #[serde(default)]
+    pub shortcuts: ShortcutRegistry,
 }
 
 impl Default for Preferences {
@@ -23,6 +25,7 @@ impl Default for Preferences {
             schema_version: 1,
             theme: "Modern Light".into(),
             scale: 100,
+            shortcuts: ShortcutRegistry::default(),
         }
     }
 }
@@ -62,6 +65,7 @@ impl Preferences {
         {
             return Err(Error::input("Unsupported workbench preferences"));
         }
+        self.shortcuts.validate()?;
         Ok(())
     }
 }
@@ -121,5 +125,19 @@ mod tests {
         assert!(app_preferences_path("../other").is_none());
         assert!(app_preferences_path("").is_none());
         assert!(app_preferences_path("directory/app").is_none());
+    }
+
+    #[test]
+    fn loads_v1_appearance_preferences_without_shortcuts() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("app/workbench.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            br#"{"schema_version":1,"theme":"Modern Light","scale":100}"#,
+        )
+        .unwrap();
+        let loaded = Preferences::load(&path).unwrap();
+        assert_eq!(loaded.shortcuts, ShortcutRegistry::default());
     }
 }
