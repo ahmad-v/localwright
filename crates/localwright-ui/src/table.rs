@@ -340,7 +340,7 @@ pub fn paginated_table<'a, Message: Clone + 'a>(
         );
     }
     let mut lines = column![header].spacing(1);
-    for (absolute_row, values) in range.clone().zip(table.page(range)) {
+    for (absolute_row, values) in range.clone().zip(table.page(range.clone())) {
         let row_number = absolute_row + 1;
         let row_label = if state.selected_row() == Some(absolute_row) {
             format!("Row {row_number}, selected")
