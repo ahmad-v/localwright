@@ -314,7 +314,7 @@ fn cell<'a, Message: 'a>(value: &CellValue) -> Element<'a, Message> {
 /// Only `page_size` rows are converted into Iced widgets. Headers are buttons that
 /// request a stable typed sort; row-number buttons request absolute row selection.
 /// Cells are rendered with a bounded text preview of at most 256 characters.
-pub fn paginated_table<'a, Message: 'a>(
+pub fn paginated_table<'a, Message: Clone + 'a>(
     table: &'a TableModel,
     state: &'a TableState,
     mut on_action: impl FnMut(TableAction) -> Message + 'a,
