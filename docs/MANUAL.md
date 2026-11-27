@@ -1,6 +1,6 @@
 # Offline manual | Localwright
 
-Development source only. Launch the GUI after compiling. Choose an operation, enter local input path and a new output path where needed, set the parameter as described under the operation selector, then Run. Status and errors are shown below. Cancel requests cooperative cancellation. The draft editor accepts transcript or plain text. Theme selection changes client colors only. Native asynchronous open/save dialogs, workspace tabs and persisted resizing are integrated; full accessibility remains pending.
+Development source only. Launch the GUI after compiling. Choose an operation, enter local input path and a new output path where needed, set the parameter as described under the operation selector, then Run. Status and errors are shown below. Cancel requests cooperative cancellation. The draft editor accepts transcript or plain text. Structured result reports with bounded string `headers` and row-array `preview` fields render in a scrollable table with row indices; other results remain plain text. Native asynchronous open/save dialogs, workspace tabs and persisted resizing are integrated; full accessibility remains pending.
 
 - `settings`: JSON settings parse/save-new.
 - `jobs`: Single background job and cooperative cancellation.
