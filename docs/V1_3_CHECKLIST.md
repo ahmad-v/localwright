@@ -28,7 +28,7 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 06 | Document conversion, layout and legacy filters | Partial | Basic generated DOCX. Office fidelity and structured conversion remain. |
 | 06 | PDF structural operations and native rendering | Partial | Text extraction, split, reorder, rotation and selected-page deletion have fixtures. Rendering and remaining edits are open; structural edits may drop document-level objects and do not sanitize active content. |
 | 06 | Private OCR and independently verified searchable PDF | Partial | The Linux app-relative Tesseract CLI passed text and searchable PDF checks, including independent text and original-image verification. Wider inputs and platform packs remain. |
-| 06 | Publishing, citations and safe e-book workflows | Open | Typst or equivalent, bibliography and EPUB require fixture-backed routes. |
+| 06 | Publishing, citations and safe e-book workflows | Partial | Document Studio now validates bounded CSL JSON, exchanges supported records with RIS, and exports BibTeX with Linux fixtures. Typst reports, validated citation styles, fuller bibliography management and EPUB reading/validation remain. |
 | 06 | Document comparison, indexing and metadata | Partial | Bounded UTF-8 line comparison passed integration and CLI tests. Structural/visual comparison and indexing remain. |
 | 06 | Directional document formats and independent reader checks | Partial | Basic text, DOCX and PDF. Validate preservation and conversions independently. |
 | 07 | Local ASR, recording, media import, timestamps and batch | Partial | The Linux app-relative Whisper CLI passed an offline WAV-to-draft and SRT export fixture. Default local model, media coverage, recording and batch remain. |
