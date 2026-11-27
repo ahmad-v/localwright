@@ -112,6 +112,113 @@ fn control_border(theme: &Theme, focused: bool) -> Border {
     }
 }
 
+const MAX_PREVIEW_TABLE_COLUMNS: usize = 256;
+const MAX_PREVIEW_TABLE_ROWS: usize = 100;
+const MAX_PREVIEW_TABLE_CELLS: usize = 8192;
+const PREVIEW_TABLE_CELL_WIDTH: f32 = 168.0;
+
+struct PreviewTable {
+    headers: Vec<String>,
+    rows: Vec<Vec<String>>,
+    total_rows: usize,
+    warnings: String,
+}
+
+fn preview_table(report: &str) -> Option<PreviewTable> {
+    if report.len() > 128 * 1024 {
+        return None;
+    }
+    let mut stream = serde_json::Deserializer::from_str(report).into_iter::<serde_json::Value>();
+    let value = stream.next()?.ok()?;
+    let consumed = stream.byte_offset();
+    let object = value.as_object()?;
+    let header_values = object.get("headers")?.as_array()?;
+    if header_values.is_empty() || header_values.len() > MAX_PREVIEW_TABLE_COLUMNS {
+        return None;
+    }
+    let headers = header_values
+        .iter()
+        .map(|value| value.as_str().map(str::to_owned))
+        .collect::<Option<Vec<_>>>()?;
+    let preview_values = object.get("preview")?.as_array()?;
+    if preview_values.len() > MAX_PREVIEW_TABLE_ROWS
+        || preview_values.len().saturating_mul(headers.len()) > MAX_PREVIEW_TABLE_CELLS
+    {
+        return None;
+    }
+    let mut rows = Vec::with_capacity(preview_values.len());
+    for row in preview_values {
+        let row = row.as_array()?;
+        if row.len() != headers.len() {
+            return None;
+        }
+        let cells = row
+            .iter()
+            .map(|value| match value {
+                serde_json::Value::Null => Some(String::new()),
+                serde_json::Value::String(value) => Some(value.chars().take(512).collect()),
+                serde_json::Value::Number(value) => Some(value.to_string()),
+                serde_json::Value::Bool(value) => Some(value.to_string()),
+                serde_json::Value::Array(_) | serde_json::Value::Object(_) => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        rows.push(cells);
+    }
+    let total_rows = object
+        .get("rows")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|rows| usize::try_from(rows).ok())
+        .unwrap_or(rows.len());
+    let warnings = report[consumed..]
+        .trim()
+        .chars()
+        .take(2048)
+        .collect();
+    Some(PreviewTable {
+        headers,
+        rows,
+        total_rows,
+        warnings,
+    })
+}
+
+fn preview_table_cell(value: String) -> Element<'static, Message> {
+    container(text(value).size(13))
+        .width(Length::Fixed(PREVIEW_TABLE_CELL_WIDTH))
+        .padding(4)
+        .into()
+}
+
+fn preview_table_view(table: PreviewTable) -> Element<'static, Message> {
+    let mut header_cells = Vec::with_capacity(table.headers.len() + 1);
+    header_cells.push(preview_table_cell("#".into()));
+    header_cells.extend(table.headers.into_iter().map(preview_table_cell));
+    let mut lines: Vec<Element<'static, Message>> = vec![row(header_cells).spacing(1).into()];
+    for (index, values) in table.rows.into_iter().enumerate() {
+        let mut cells = Vec::with_capacity(values.len() + 1);
+        cells.push(preview_table_cell((index + 1).to_string()));
+        cells.extend(values.into_iter().map(preview_table_cell));
+        lines.push(row(cells).spacing(1).into());
+    }
+    let mut content = column![
+        text(format!("Showing {} of {} rows", lines.len().saturating_sub(1), table.total_rows))
+    ]
+    .spacing(6);
+    if !table.warnings.is_empty() {
+        content = content.push(text(table.warnings).wrapping(text::Wrapping::WordOrGlyph));
+    }
+    content
+        .push(
+            scrollable(column(lines).spacing(1))
+                .direction(scrollable::Direction::Both {
+                    vertical: scrollable::Scrollbar::default(),
+                    horizontal: scrollable::Scrollbar::default(),
+                })
+                .height(Length::Fixed(360.0)),
+        )
+        .into()
+}
+
 #[derive(Clone, Copy)]
 struct OperationChoice(&'static Operation);
 
@@ -739,11 +846,16 @@ impl State {
                     ]
                     .spacing(8);
                     let panel = match project.workspace_tab {
-                        WorkspaceTab::Result => column![
-                            text("Result and warnings"),
-                            text(&project.preview).wrapping(text::Wrapping::WordOrGlyph),
-                        ]
-                        .spacing(8),
+                        WorkspaceTab::Result => {
+                            let result: Element<'_, Message> = preview_table(&project.preview)
+                                .map(preview_table_view)
+                                .unwrap_or_else(|| {
+                                    text(&project.preview)
+                                        .wrapping(text::Wrapping::WordOrGlyph)
+                                        .into()
+                                });
+                            column![text("Result and warnings"), result].spacing(8)
+                        }
                         WorkspaceTab::Draft => column![text("Editable draft / transcript"), {
                             let editor = text_editor(&project.editor).height(Length::Fill).style(
                                 |theme, status| {
@@ -958,6 +1070,43 @@ mod tests {
             }
         };
         0.2126 * linear(color.r) + 0.7152 * linear(color.g) + 0.0722 * linear(color.b)
+    }
+
+    #[test]
+    fn bounded_table_preview_parses_rows_and_preserves_trailing_warnings() {
+        let report = concat!(
+            r#"{"rows":1000,"headers":["id","name"],"preview":[["1","Ada"],["2","Lin"]]}"#,
+            "\nWarning: original source was preserved."
+        );
+        let table = preview_table(report).unwrap();
+        assert_eq!(table.headers, ["id", "name"]);
+        assert_eq!(table.rows.len(), 2);
+        assert_eq!(table.total_rows, 1000);
+        assert_eq!(table.warnings, "Warning: original source was preserved.");
+        let _view = preview_table_view(table);
+    }
+
+    #[test]
+    fn bounded_table_preview_rejects_unbounded_or_malformed_shapes() {
+        let too_many_columns = serde_json::json!({
+            "rows": 0,
+            "headers": (0..=MAX_PREVIEW_TABLE_COLUMNS)
+                .map(|index| format!("column-{index}"))
+                .collect::<Vec<_>>(),
+            "preview": []
+        });
+        assert!(preview_table(&too_many_columns.to_string()).is_none());
+        let too_many_cells = serde_json::json!({
+            "rows": 65,
+            "headers": (0..128).map(|index| format!("column-{index}")).collect::<Vec<_>>(),
+            "preview": vec![vec![""; 128]; 65]
+        });
+        assert!(preview_table(&too_many_cells.to_string()).is_none());
+        assert!(preview_table(
+            r#"{"rows":1,"headers":["a","b"],"preview":[["only one"]]}"#
+        )
+        .is_none());
+        assert!(preview_table("ordinary textual result").is_none());
     }
 
     #[test]
