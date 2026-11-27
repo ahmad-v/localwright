@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
+mod preferences;
 use iced::{
     theme::Palette,
     widget::{
@@ -8,7 +9,8 @@ use iced::{
     Border, Color, Element, Length, Task, Theme,
 };
 use localwright_core::{Error, ErrorKind, Handler, Job, Operation, Outcome, Request, Result};
-use std::fmt;
+use preferences::{app_preferences_path, Preferences};
+use std::{fmt, path::PathBuf};
 
 /// A theme name followed by the RGB background, text, and accent colors.
 pub type ThemePreset = (&'static str, [u8; 3], [u8; 3], [u8; 3]);
@@ -130,8 +132,9 @@ struct State {
     parameter: String,
     editor: text_editor::Content,
     preview: String,
-    theme: String,
-    scale: u16,
+    preferences: Preferences,
+    preferences_path: Option<PathBuf>,
+    preferences_error: Option<String>,
     job: Option<Job>,
     status: String,
 }
@@ -156,8 +159,14 @@ impl State {
             Message::Output(v) => self.output = v,
             Message::Parameter(v) => self.parameter = v,
             Message::Edit(a) => self.editor.perform(a),
-            Message::Theme(v) => self.theme = v,
-            Message::Scale(v) => self.scale = v,
+            Message::Theme(v) => {
+                self.preferences.theme = v;
+                self.save_preferences();
+            }
+            Message::Scale(v) => {
+                self.preferences.scale = v;
+                self.save_preferences();
+            }
             Message::Cancel => {
                 if let Some(j) = &self.job {
                     j.cancel();
@@ -229,7 +238,21 @@ impl State {
         }
         Task::none()
     }
+    fn save_preferences(&mut self) {
+        if let Some(path) = &self.preferences_path {
+            self.preferences_error = self
+                .preferences
+                .save(path)
+                .err()
+                .map(|error| format!("Could not save appearance preferences: {error}"));
+        }
+    }
+
     fn view(&self) -> Element<'_, Message> {
+        let status = match &self.preferences_error {
+            Some(error) => format!("{}\n{error}", self.status),
+            None => self.status.clone(),
+        };
         let ops = self.ops.iter().map(OperationChoice).collect::<Vec<_>>();
         let themes = THEMES.iter().map(|t| t.0.to_owned()).collect::<Vec<_>>();
         let selected = ops.iter().copied().find(|o| o.0.id == self.selected);
@@ -275,14 +298,15 @@ impl State {
                         .align_y(iced::Alignment::Center),
                         row![
                             text("Theme"),
-                            pick_list(themes, Some(self.theme.clone()), Message::Theme)
+                            pick_list(themes, Some(self.preferences.theme.clone()), Message::Theme)
                                 .style(picker_style)
                         ]
                         .spacing(8)
                         .align_y(iced::Alignment::Center),
                         row![
                             text("UI scale (%)"),
-                            pick_list(SCALES, Some(self.scale), Message::Scale).style(picker_style)
+                            pick_list(SCALES, Some(self.preferences.scale), Message::Scale)
+                                .style(picker_style)
                         ]
                         .spacing(8)
                         .align_y(iced::Alignment::Center),
@@ -306,7 +330,7 @@ impl State {
                         .padding(8)
                         .style(input_style),
                     row![run, cancel].spacing(8).wrap(),
-                    text(&self.status).wrapping(text::Wrapping::WordOrGlyph),
+                    text(status).wrapping(text::Wrapping::WordOrGlyph),
                     text("Result and warnings"),
                     text(&self.preview).wrapping(text::Wrapping::WordOrGlyph),
                     text("Editable draft / transcript"),
@@ -355,9 +379,41 @@ fn input_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
 /// handler is responsible for input limits, error handling, and checking for
 /// cancellation. An empty operation list displays the shell without a Run action.
 pub fn run(title: &'static str, ops: &'static [Operation], handler: Handler) -> iced::Result {
+    run_workbench(title, ops, handler, None)
+}
+
+/// Open the workbench with theme and scale saved under a stable application key.
+///
+/// Keys use lowercase ASCII letters, digits and hyphens. The application stores only
+/// its theme and scale in the user configuration directory. Input paths and drafts
+/// are session data. When preferences are unavailable, the workbench uses defaults.
+pub fn run_with_saved_appearance(
+    title: &'static str,
+    app_key: &'static str,
+    ops: &'static [Operation],
+    handler: Handler,
+) -> iced::Result {
+    run_workbench(title, ops, handler, app_preferences_path(app_key))
+}
+
+fn run_workbench(
+    title: &'static str,
+    ops: &'static [Operation],
+    handler: Handler,
+    preferences_path: Option<PathBuf>,
+) -> iced::Result {
+    let (preferences, preferences_error) = match preferences_path.as_deref().map(Preferences::load)
+    {
+        Some(Ok(preferences)) => (preferences, None),
+        Some(Err(error)) => (
+            Preferences::default(),
+            Some(format!("Could not load appearance preferences: {error}")),
+        ),
+        None => (Preferences::default(), None),
+    };
     iced::application(title, State::update, State::view)
-        .theme(|s: &State| preset(&s.theme))
-        .scale_factor(|s: &State| f64::from(s.scale) / 100.0)
+        .theme(|s: &State| preset(&s.preferences.theme))
+        .scale_factor(|s: &State| f64::from(s.preferences.scale) / 100.0)
         .run_with(move || {
             (
                 State {
@@ -369,8 +425,9 @@ pub fn run(title: &'static str, ops: &'static [Operation], handler: Handler) -> 
                     parameter: String::new(),
                     editor: text_editor::Content::new(),
                     preview: String::new(),
-                    theme: "Modern Light".into(),
-                    scale: 100,
+                    preferences,
+                    preferences_path,
+                    preferences_error,
                     job: None,
                     status: "Ready".into(),
                 },
