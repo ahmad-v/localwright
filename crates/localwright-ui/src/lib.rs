@@ -3,6 +3,7 @@
 mod commands;
 mod preferences;
 mod shortcuts;
+mod table;
 pub use commands::{CommandDescriptor, CommandMenu, WorkbenchCommand, COMMAND_REGISTRY};
 use iced::{
     keyboard::{key::Named, Key, Modifiers},
@@ -17,6 +18,10 @@ use localwright_core::{Error, ErrorKind, Handler, Job, Operation, Outcome, Reque
 use preferences::{app_preferences_path, Preferences};
 pub use shortcuts::{ShortcutBinding, ShortcutCommand, ShortcutKey, ShortcutRegistry};
 use std::{fmt, path::PathBuf};
+pub use table::{
+    paginated_table, CellValue, SortDirection, TableAction, TableError, TableModel, TableState,
+    MAX_TABLE_COLUMNS, MAX_TABLE_PAGE_SIZE,
+};
 
 /// A theme name followed by the RGB background, text, and accent colors.
 pub type ThemePreset = (&'static str, [u8; 3], [u8; 3], [u8; 3]);

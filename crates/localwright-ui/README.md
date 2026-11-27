@@ -35,4 +35,10 @@ Requires Rust 1.88 and a graphical desktop. On Linux, the project CI installs `l
 
 The common action registry is exposed as `COMMAND_REGISTRY` with `WorkbenchCommand`, `CommandMenu`, and `CommandDescriptor`. Menu, toolbar, browse/save buttons, and Run/Cancel shortcuts route through the same action dispatch. The View menu action and sidebar preference control can hide or restore the toolbar. This choice is persisted when using `run_with_saved_appearance`; older version 1 preferences default to a visible toolbar. The native split is mouse-resizable and its ratio is saved when using `run_with_saved_appearance`; Ctrl/Command+Alt+\[ and \] narrow or widen it in five-point increments within the accessible 20%–70% range. Existing version 1 preferences without a panel-width entry receive the 34% default. Each project tab owns its input/output paths, operation selection, parameter, editable draft and result. Use the visible tab buttons or Ctrl+Tab / Ctrl+Shift+Tab on all targets to change projects. Closing a project cancels its active operation cooperatively; only one operation runs at a time. Project tabs and their contents are session-local and are not yet persisted. Detachable panels remain future work.
 
+## Paginated typed table
+
+`TableModel` and `paginated_table` provide a native Iced table component for typed rows. It validates consistent non-null column types, keeps null values distinct from empty text, caps the schema at 128 columns, renders at most 100 data rows per page, truncates displayed cell text to 256 characters, supports typed stable sorting with nulls last, and emits accessible row-selection and page actions to the embedding application. This bounds widget construction and visible text; the caller still owns the full in-memory dataset and must use its own streaming or storage layer for very large inputs.
+
+Run the standalone example with `cargo run -p localwright-ui --example paginated_table`. It demonstrates integer, categorical, floating-point, Boolean and null values, page navigation, header sorting and row selection.
+
 See the MIT and Apache-2.0 license texts and third-party notices included in this package.
