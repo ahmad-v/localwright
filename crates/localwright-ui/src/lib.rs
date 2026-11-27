@@ -5,7 +5,7 @@ mod preferences;
 mod shortcuts;
 pub use commands::{CommandDescriptor, CommandMenu, WorkbenchCommand, COMMAND_REGISTRY};
 use iced::{
-    keyboard::{Key, Modifiers},
+    keyboard::{key::Named, Key, Modifiers},
     theme::Palette,
     widget::{
         button, column, container, pane_grid, pick_list, row, scrollable, text, text_editor,
@@ -132,6 +132,25 @@ const SCALES: [u16; 7] = [80, 100, 125, 150, 200, 250, 300];
 struct State {
     ops: &'static [Operation],
     handler: Handler,
+    projects: Vec<Project>,
+    active_project: u64,
+    next_project_id: u64,
+    preferences: Preferences,
+    preferences_path: Option<PathBuf>,
+    preferences_error: Option<String>,
+    job: Option<Job>,
+    job_project: Option<u64>,
+    status: String,
+    panes: pane_grid::State<WorkspacePane>,
+    active_menu: Option<CommandMenu>,
+}
+
+const MAX_PROJECT_TABS: usize = 32;
+
+/// Session-local project state. Each tab owns its independent operation inputs and results.
+struct Project {
+    id: u64,
+    title: String,
     selected: String,
     input: String,
     input_selection: Option<PathBuf>,
@@ -140,14 +159,29 @@ struct State {
     parameter: String,
     editor: text_editor::Content,
     preview: String,
-    preferences: Preferences,
-    preferences_path: Option<PathBuf>,
-    preferences_error: Option<String>,
-    job: Option<Job>,
-    status: String,
-    panes: pane_grid::State<WorkspacePane>,
     workspace_tab: WorkspaceTab,
-    active_menu: Option<CommandMenu>,
+}
+
+impl Project {
+    fn new(id: u64, ops: &[Operation]) -> Self {
+        Self {
+            id,
+            title: format!("Project {id}"),
+            selected: ops
+                .first()
+                .map(|operation| operation.id)
+                .unwrap_or("")
+                .into(),
+            input: String::new(),
+            input_selection: None,
+            output: String::new(),
+            output_selection: None,
+            parameter: String::new(),
+            editor: text_editor::Content::new(),
+            preview: String::new(),
+            workspace_tab: WorkspaceTab::Result,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -163,6 +197,9 @@ enum WorkspaceTab {
 }
 #[derive(Debug, Clone)]
 enum Message {
+    NewProject,
+    ActivateProject(u64),
+    CloseProject(u64),
     Select(&'static str),
     Input(String),
     Output(String),
@@ -172,32 +209,108 @@ enum Message {
     Scale(u16),
     ShortcutKey(ShortcutCommand, String),
     PickInput,
-    InputPicked(Option<PathBuf>),
+    InputPicked(u64, Option<PathBuf>),
     PickOutput,
-    OutputPicked(Option<PathBuf>),
+    OutputPicked(u64, Option<PathBuf>),
     Run,
     Cancel,
     KeyPressed(Key, Modifiers),
-    Done(Result<Outcome>),
+    Done(u64, Result<Outcome>),
     Resize(pane_grid::ResizeEvent),
     WorkspaceTab(WorkspaceTab),
     Menu(CommandMenu),
     Command(WorkbenchCommand),
 }
 impl State {
+    fn active_project(&self) -> &Project {
+        self.projects
+            .iter()
+            .find(|project| project.id == self.active_project)
+            .expect("the workbench always has an active project")
+    }
+
+    fn active_project_mut(&mut self) -> &mut Project {
+        self.projects
+            .iter_mut()
+            .find(|project| project.id == self.active_project)
+            .expect("the workbench always has an active project")
+    }
+
+    fn add_project(&mut self) {
+        if self.projects.len() >= MAX_PROJECT_TABS {
+            self.status = format!("At most {MAX_PROJECT_TABS} project tabs can be open");
+            return;
+        }
+        let id = self.next_project_id;
+        let Some(next_id) = id.checked_add(1) else {
+            self.status = "Project identifier space exhausted; restart the workbench".into();
+            return;
+        };
+        self.next_project_id = next_id;
+        self.projects.push(Project::new(id, self.ops));
+        self.active_project = id;
+        self.status = format!("Opened Project {id}");
+    }
+
+    fn close_project(&mut self, id: u64) {
+        if self.projects.len() <= 1 {
+            self.status = "Keep at least one project tab open".into();
+            return;
+        }
+        let Some(index) = self.projects.iter().position(|project| project.id == id) else {
+            return;
+        };
+        if self.job_project == Some(id) {
+            if let Some(job) = &self.job {
+                job.cancel();
+            }
+            self.status = "Project closed; waiting for its operation to stop".into();
+        }
+        self.projects.remove(index);
+        if self.active_project == id {
+            self.active_project = self.projects[index.min(self.projects.len() - 1)].id;
+        }
+    }
+
+    fn cycle_project(&mut self, reverse: bool) {
+        if self.projects.len() < 2 {
+            return;
+        }
+        let current = self
+            .projects
+            .iter()
+            .position(|project| project.id == self.active_project)
+            .unwrap_or(0);
+        let next = if reverse {
+            (current + self.projects.len() - 1) % self.projects.len()
+        } else {
+            (current + 1) % self.projects.len()
+        };
+        self.active_project = self.projects[next].id;
+    }
+
     fn update(&mut self, msg: Message) -> Task<Message> {
         match msg {
-            Message::Select(v) => self.selected = v.into(),
+            Message::NewProject => self.add_project(),
+            Message::ActivateProject(id) => {
+                if self.projects.iter().any(|project| project.id == id) {
+                    self.active_project = id;
+                }
+            }
+            Message::CloseProject(id) => self.close_project(id),
+            Message::Select(v) => self.active_project_mut().selected = v.into(),
             Message::Input(v) => {
-                self.input = v;
-                self.input_selection = None;
+                let project = self.active_project_mut();
+                project.input = v;
+                project.input_selection = None;
             }
             Message::Output(v) => {
-                self.output = v;
-                self.output_selection = None;
+                let project = self.active_project_mut();
+                project.output = v;
+                project.output_selection = None;
             }
-            Message::Parameter(v) => self.parameter = v,
-            Message::Edit(a) => self.editor.perform(a),
+            Message::Parameter(v) => self.active_project_mut().parameter = v,
+            Message::Edit(a) => self.active_project_mut().editor.perform(a),
             Message::Theme(v) => {
                 self.preferences.theme = v;
                 self.save_preferences();
@@ -222,6 +335,7 @@ impl State {
                 }
             }
             Message::PickInput => {
+                let project_id = self.active_project;
                 return Task::perform(
                     async {
                         rfd::AsyncFileDialog::new()
@@ -230,13 +344,16 @@ impl State {
                             .await
                             .map(|file| file.path().to_path_buf())
                     },
-                    Message::InputPicked,
+                    move |path| Message::InputPicked(project_id, path),
                 );
             }
-            Message::InputPicked(path) => {
-                apply_path_selection(&mut self.input, &mut self.input_selection, path);
+            Message::InputPicked(id, path) => {
+                if let Some(project) = self.projects.iter_mut().find(|project| project.id == id) {
+                    apply_path_selection(&mut project.input, &mut project.input_selection, path);
+                }
             }
             Message::PickOutput => {
+                let project_id = self.active_project;
                 return Task::perform(
                     async {
                         rfd::AsyncFileDialog::new()
@@ -245,11 +362,13 @@ impl State {
                             .await
                             .map(|file| file.path().to_path_buf())
                     },
-                    Message::OutputPicked,
+                    move |path| Message::OutputPicked(project_id, path),
                 );
             }
-            Message::OutputPicked(path) => {
-                apply_path_selection(&mut self.output, &mut self.output_selection, path);
+            Message::OutputPicked(id, path) => {
+                if let Some(project) = self.projects.iter_mut().find(|project| project.id == id) {
+                    apply_path_selection(&mut project.output, &mut project.output_selection, path);
+                }
             }
             Message::Cancel => {
                 if let Some(j) = &self.job {
@@ -258,6 +377,10 @@ impl State {
                 }
             }
             Message::KeyPressed(key, modifiers) => {
+                if modifiers.control() && matches!(key.as_ref(), Key::Named(Named::Tab)) {
+                    self.cycle_project(modifiers.shift());
+                    return Task::none();
+                }
                 match self.preferences.shortcuts.resolve(&key, modifiers) {
                     Some(ShortcutCommand::Run) => {
                         return self.update(Message::Command(WorkbenchCommand::Run));
@@ -272,32 +395,36 @@ impl State {
                 if self.job.is_some() {
                     return Task::none();
                 }
-                let job = Job::new();
-                self.job = Some(job.clone());
-                self.status = "Running operation".into();
-                self.preview.clear();
-                let r = Request {
-                    operation: self.selected.clone(),
-                    input: self
+                let project_id = self.active_project;
+                let project = self.active_project();
+                let request = Request {
+                    operation: project.selected.clone(),
+                    input: project
                         .input_selection
                         .clone()
-                        .unwrap_or_else(|| PathBuf::from(&self.input)),
-                    output: self
+                        .unwrap_or_else(|| PathBuf::from(&project.input)),
+                    output: project
                         .output_selection
                         .clone()
-                        .unwrap_or_else(|| PathBuf::from(&self.output)),
-                    parameter: self.parameter.clone(),
-                    draft: self.editor.text(),
+                        .unwrap_or_else(|| PathBuf::from(&project.output)),
+                    parameter: project.parameter.clone(),
+                    draft: project.editor.text(),
                 };
+                let job = Job::new();
+                self.job = Some(job.clone());
+                self.job_project = Some(project_id);
+                self.status = "Running operation".into();
+                self.active_project_mut().preview.clear();
                 let handler = self.handler;
                 let (tx, rx) = futures::channel::oneshot::channel();
                 let spawn = std::thread::Builder::new()
                     .name("localwright-job".into())
                     .spawn(move || {
-                        let _ = tx.send(handler(r, job));
+                        let _ = tx.send(handler(request, job));
                     });
                 if let Err(e) = spawn {
                     self.job = None;
+                    self.job_project = None;
                     self.status = e.to_string();
                     return Task::none();
                 }
@@ -310,11 +437,12 @@ impl State {
                             ))
                         })
                     },
-                    Message::Done,
+                    move |result| Message::Done(project_id, result),
                 );
             }
-            Message::Done(result) => {
+            Message::Done(project_id, result) => {
                 self.job = None;
+                self.job_project = None;
                 match result {
                     Ok(o) => {
                         self.status = if let Some(p) = o.written {
@@ -322,17 +450,24 @@ impl State {
                         } else {
                             "Finished".into()
                         };
-                        self.preview = o.preview;
+                        let Some(project) = self.projects.iter_mut().find(|p| p.id == project_id)
+                        else {
+                            return Task::none();
+                        };
+                        project.preview = o.preview;
                         for warning in o.warnings {
-                            self.preview.push_str(&format!("\nWarning: {warning}"));
+                            project.preview.push_str(&format!("\nWarning: {warning}"));
                         }
                         if let Some(d) = o.draft {
-                            self.editor = text_editor::Content::with_text(&d);
+                            project.editor = text_editor::Content::with_text(&d);
                         }
                     }
                     Err(e) => {
                         self.status = format!("Error: {:?}", e.kind);
-                        self.preview = e.message;
+                        if let Some(project) = self.projects.iter_mut().find(|p| p.id == project_id)
+                        {
+                            project.preview = e.message;
+                        }
                     }
                 }
             }
@@ -345,7 +480,7 @@ impl State {
                     self.save_preferences();
                 }
             }
-            Message::WorkspaceTab(tab) => self.workspace_tab = tab,
+            Message::WorkspaceTab(tab) => self.active_project_mut().workspace_tab = tab,
             Message::Menu(menu) => {
                 self.active_menu = if self.active_menu == Some(menu) {
                     None
@@ -386,6 +521,7 @@ impl State {
     }
 
     fn view(&self) -> Element<'_, Message> {
+        let project = self.active_project();
         let status = match &self.preferences_error {
             Some(error) => format!("{}\n{error}", self.status),
             None => self.status.clone(),
@@ -393,7 +529,7 @@ impl State {
         let ops = self.ops.iter().map(OperationChoice).collect::<Vec<_>>();
         let themes = THEMES.iter().map(|t| t.0.to_owned()).collect::<Vec<_>>();
         let shortcut_keys = shortcut_key_labels();
-        let selected = ops.iter().copied().find(|o| o.0.id == self.selected);
+        let selected = ops.iter().copied().find(|o| o.0.id == project.selected);
         let hint = selected.map(|o| o.0.hint).unwrap_or("");
         let menu_bar = row(CommandMenu::all()
             .iter()
@@ -432,6 +568,31 @@ impl State {
             .collect::<Vec<Element<'_, Message>>>())
         .spacing(8)
         .wrap();
+        let mut project_tabs = row![text("Projects")]
+            .spacing(4)
+            .align_y(iced::Alignment::Center);
+        for tab in &self.projects {
+            let active = tab.id == self.active_project;
+            let label = if active {
+                format!("Active: {}", tab.title)
+            } else {
+                tab.title.clone()
+            };
+            project_tabs =
+                project_tabs.push(button(label).on_press(Message::ActivateProject(tab.id)));
+            let close = button(format!("Close {}", tab.title));
+            project_tabs = project_tabs.push(if self.projects.len() > 1 {
+                close.on_press(Message::CloseProject(tab.id))
+            } else {
+                close
+            });
+        }
+        let add_project = button("+ Project");
+        project_tabs = project_tabs.push(if self.projects.len() < MAX_PROJECT_TABS {
+            add_project.on_press(Message::NewProject)
+        } else {
+            add_project
+        });
         let content = pane_grid::PaneGrid::new(&self.panes, |_, panel, _| {
             let body: Element<'_, Message> = match panel {
                 WorkspacePane::Controls => scrollable(
@@ -471,7 +632,7 @@ impl State {
                             text(hint),
                             text("Input path"),
                             row![
-                                text_input("Path to local input", &self.input)
+                                text_input("Path to local input", &project.input)
                                     .on_input(Message::Input)
                                     .padding(8)
                                     .style(input_style),
@@ -482,7 +643,7 @@ impl State {
                             .wrap(),
                             text("New output path"),
                             row![
-                                text_input("Output path", &self.output)
+                                text_input("Output path", &project.output)
                                     .on_input(Message::Output)
                                     .padding(8)
                                     .style(input_style),
@@ -492,7 +653,7 @@ impl State {
                             .spacing(8)
                             .wrap(),
                             text("Operation parameter"),
-                            text_input("See operation description", &self.parameter)
+                            text_input("See operation description", &project.parameter)
                                 .on_input(Message::Parameter)
                                 .padding(8)
                                 .style(input_style),
@@ -536,14 +697,14 @@ impl State {
                             .on_press(Message::WorkspaceTab(WorkspaceTab::Draft)),
                     ]
                     .spacing(8);
-                    let panel = match self.workspace_tab {
+                    let panel = match project.workspace_tab {
                         WorkspaceTab::Result => column![
                             text("Result and warnings"),
-                            text(&self.preview).wrapping(text::Wrapping::WordOrGlyph),
+                            text(&project.preview).wrapping(text::Wrapping::WordOrGlyph),
                         ]
                         .spacing(8),
                         WorkspaceTab::Draft => column![text("Editable draft / transcript"), {
-                            let editor = text_editor(&self.editor).height(Length::Fill).style(
+                            let editor = text_editor(&project.editor).height(Length::Fill).style(
                                 |theme, status| {
                                     let mut style = text_editor::default(theme, status);
                                     style.border = control_border(
@@ -580,7 +741,7 @@ impl State {
         })
         .spacing(6)
         .on_resize(8, Message::Resize);
-        let mut shell = column![menu_bar];
+        let mut shell = column![menu_bar, project_tabs];
         if let Some(items) = menu_items {
             shell = shell.push(items);
         }
@@ -693,21 +854,16 @@ fn run_workbench(
                 State {
                     ops,
                     handler,
-                    selected: ops.first().map(|o| o.id).unwrap_or("").into(),
-                    input: String::new(),
-                    input_selection: None,
-                    output: String::new(),
-                    output_selection: None,
-                    parameter: String::new(),
-                    editor: text_editor::Content::new(),
-                    preview: String::new(),
+                    projects: vec![Project::new(1, ops)],
+                    active_project: 1,
+                    next_project_id: 2,
                     preferences,
                     preferences_path,
                     preferences_error,
                     job: None,
+                    job_project: None,
                     status: "Ready".into(),
                     panes,
-                    workspace_tab: WorkspaceTab::Result,
                     active_menu: None,
                 },
                 Task::none(),
@@ -718,6 +874,30 @@ fn run_workbench(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn state_for_test() -> State {
+        let ops = &[Operation {
+            id: "test",
+            label: "Test",
+            hint: "Test operation",
+        }];
+        let (panes, _) = pane_grid::State::new(WorkspacePane::Controls);
+        State {
+            ops,
+            handler: |_request, _job| Ok(Outcome::default()),
+            projects: vec![Project::new(1, ops)],
+            active_project: 1,
+            next_project_id: 2,
+            preferences: Preferences::default(),
+            preferences_path: None,
+            preferences_error: None,
+            job: None,
+            job_project: None,
+            status: "Ready".into(),
+            panes,
+            active_menu: None,
+        }
+    }
 
     fn luminance(color: Color) -> f32 {
         let linear = |channel: f32| {
@@ -784,5 +964,98 @@ mod tests {
         assert_eq!(normalized_panel_ratio(0.1, 34), 0.2);
         assert_eq!(normalized_panel_ratio(0.9, 34), 0.7);
         assert_eq!(normalized_panel_ratio(f32::NAN, 44), 0.44);
+    }
+
+    #[test]
+    fn project_tabs_keep_inputs_drafts_and_results_separate() {
+        let mut state = state_for_test();
+        state.active_project_mut().input = "first.csv".into();
+        state.active_project_mut().parameter = "first parameter".into();
+        state.active_project_mut().preview = "first result".into();
+        state.active_project_mut().editor = text_editor::Content::with_text("first draft");
+
+        state.add_project();
+        let second = state.active_project;
+        assert_eq!(second, 2);
+        assert!(state.active_project().input.is_empty());
+        assert!(state.active_project().preview.is_empty());
+        state.active_project_mut().input = "second.csv".into();
+        state.active_project_mut().preview = "second result".into();
+
+        state.active_project = 1;
+        assert_eq!(state.active_project().input, "first.csv");
+        assert_eq!(state.active_project().parameter, "first parameter");
+        assert_eq!(state.active_project().preview, "first result");
+        assert_eq!(state.active_project().editor.text(), "first draft");
+        state.active_project = second;
+        assert_eq!(state.active_project().input, "second.csv");
+        assert_eq!(state.active_project().preview, "second result");
+    }
+
+    #[test]
+    fn project_tabs_cycle_and_close_without_leaving_a_stale_active_id() {
+        let mut state = state_for_test();
+        state.add_project();
+        state.add_project();
+        assert_eq!(state.active_project, 3);
+
+        state.active_project = 1;
+        let _ = state.update(Message::KeyPressed(Key::Named(Named::Tab), Modifiers::CTRL));
+        assert_eq!(state.active_project, 2);
+        let _ = state.update(Message::KeyPressed(
+            Key::Named(Named::Tab),
+            Modifiers::CTRL | Modifiers::SHIFT,
+        ));
+        assert_eq!(state.active_project, 1);
+
+        state.active_project = 3;
+        state.cycle_project(false);
+        assert_eq!(state.active_project, 1);
+        state.cycle_project(true);
+        assert_eq!(state.active_project, 3);
+
+        state.close_project(3);
+        assert_eq!(state.active_project, 2);
+        assert_eq!(state.projects.len(), 2);
+        state.close_project(2);
+        assert_eq!(state.active_project, 1);
+        state.close_project(1);
+        assert_eq!(state.projects.len(), 1);
+    }
+
+    #[test]
+    fn project_count_is_bounded_and_delayed_picker_results_keep_their_owner() {
+        let mut state = state_for_test();
+        for _ in 1..MAX_PROJECT_TABS {
+            state.add_project();
+        }
+        assert_eq!(state.projects.len(), MAX_PROJECT_TABS);
+        let final_id = state.active_project;
+        state.add_project();
+        assert_eq!(state.projects.len(), MAX_PROJECT_TABS);
+        assert_eq!(state.active_project, final_id);
+
+        let original_id = state.projects[0].id;
+        state.active_project = final_id;
+        let _ = state.update(Message::InputPicked(
+            original_id,
+            Some(PathBuf::from("/tmp/original.csv")),
+        ));
+        assert_eq!(state.projects[0].input, "/tmp/original.csv");
+        assert!(state.active_project().input.is_empty());
+    }
+
+    #[test]
+    fn closing_a_project_requests_cancellation_for_its_running_job() {
+        let mut state = state_for_test();
+        state.add_project();
+        let job = Job::new();
+        state.job = Some(job.clone());
+        state.job_project = Some(state.active_project);
+        let closing = state.active_project;
+        state.close_project(closing);
+        assert_eq!(state.active_project, 1);
+        assert!(state.job.is_some());
+        assert!(job.check().is_err());
     }
 }
