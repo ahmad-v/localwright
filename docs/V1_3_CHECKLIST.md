@@ -33,7 +33,7 @@ Rows track explicit requirements and target capability groups in the [master spe
 | 06 | Directional document formats and independent reader checks | Partial | Basic text, DOCX and PDF. Validate preservation and conversions independently. |
 | 07 | Local ASR, recording, media import, timestamps and batch | Partial | The Linux app-relative Whisper CLI passed an offline WAV-to-draft and SRT export fixture. Default local model, media coverage, recording and batch remain. |
 | 07 | Transcript editing, waveform, playback and projects | Partial | Text drafts support find/replace, cue deletion, splitting, merging, scaling and time-range trimming. Waveform SVG and subtitle/JSON routes exist. Timeline, playback and projects remain. |
-| 07 | VAD, linguistic analysis and truthful model estimates | Open | Add verified analysis capabilities and measurable quality fixtures. |
+| 07 | VAD, linguistic analysis and truthful model estimates | Partial | Speech Studio adds an offline RMS-energy activity interval report, local language estimates and Unicode transcript statistics. Linux synthetic fixtures and an 11-second WAV smoke pass. It is not a neural VAD or diarization route; labeled speech/noise accuracy, held-out language quality, and ASR-provided confidence remain unverified. |
 | 07 | Offline aligned translation | Open | Review a local backend and model licenses. |
 | 07 | Offline narration and chaptered exports | Open | Review TTS engines, voices and applicable licenses. |
 | 07 | Audio preparation and directional media formats | Partial | WAV preparation at four input rates, SRT/VTT and duration-lossy LRC exchange have Linux fixtures. Wider codecs and independent playback verification remain. |
