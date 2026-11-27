@@ -13,7 +13,7 @@ fn main() -> iced::Result {
         &[Operation {
             id: "count",
             label: "Count",
-            hint: "Enter text, then use + Project to keep multiple independent workspaces open. Switch tabs with Ctrl+Tab or Ctrl+Shift+Tab. Hide or restore the toolbar from View; the preference is saved between launches.",
+            hint: "Enter text, then use New project tab or Ctrl/Command+T to open independent workspaces. Use Ctrl/Command+W to close the active tab and Ctrl+Tab or Ctrl+Shift+Tab to switch tabs. Saved workspaces restore their tab order and selection; input and results remain session-only. The toolbar preference is also saved.",
         }],
         handle,
     )

@@ -1,4 +1,4 @@
-use super::{ShortcutRegistry, SCALES, THEMES};
+use super::{project_tabs::PersistedProjectTabs, ShortcutRegistry, SCALES, THEMES};
 use localwright_core::{read_bounded, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const MAX_BYTES: u64 = 4 * 1024;
+const MAX_BYTES: u64 = 16 * 1024;
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -23,6 +23,9 @@ pub(super) struct Preferences {
     /// Whether the common action toolbar is shown.
     #[serde(default = "default_toolbar_visible")]
     pub toolbar_visible: bool,
+    /// Ordered project-tab metadata and active selection; tab content stays in memory.
+    #[serde(default)]
+    pub project_tabs: PersistedProjectTabs,
 }
 
 fn default_panel_ratio() -> u8 {
@@ -42,6 +45,7 @@ impl Default for Preferences {
             panel_ratio: default_panel_ratio(),
             shortcuts: ShortcutRegistry::default(),
             toolbar_visible: default_toolbar_visible(),
+            project_tabs: PersistedProjectTabs::default(),
         }
     }
 }
@@ -84,6 +88,7 @@ impl Preferences {
             return Err(Error::input("Unsupported workbench preferences"));
         }
         self.shortcuts.validate()?;
+        self.project_tabs.validate().map_err(Error::input)?;
         Ok(())
     }
 }
@@ -159,6 +164,7 @@ mod tests {
         assert_eq!(loaded.shortcuts, ShortcutRegistry::default());
         assert_eq!(loaded.panel_ratio, 34);
         assert!(loaded.toolbar_visible);
+        assert!(loaded.project_tabs.tabs.is_empty());
     }
 
     #[test]
@@ -179,6 +185,14 @@ mod tests {
         assert!(loaded
             .shortcuts
             .binding(super::super::ShortcutCommand::WidenControls)
+            .is_some());
+        assert!(loaded
+            .shortcuts
+            .binding(super::super::ShortcutCommand::NewProject)
+            .is_some());
+        assert!(loaded
+            .shortcuts
+            .binding(super::super::ShortcutCommand::CloseProject)
             .is_some());
     }
 
@@ -216,5 +230,29 @@ mod tests {
         )
         .unwrap();
         assert!(Preferences::load(&path).unwrap().toolbar_visible);
+    }
+
+    #[test]
+    fn persists_valid_project_tab_order_and_active_selection() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("app/workbench.json");
+        let prefs = Preferences {
+            project_tabs: PersistedProjectTabs {
+                tabs: vec![
+                    super::super::PersistedProjectTab {
+                        id: 2,
+                        title: "Draft".into(),
+                    },
+                    super::super::PersistedProjectTab {
+                        id: 5,
+                        title: "Review".into(),
+                    },
+                ],
+                active_id: Some(5),
+            },
+            ..Preferences::default()
+        };
+        prefs.save(&path).unwrap();
+        assert_eq!(Preferences::load(&path).unwrap(), prefs);
     }
 }

@@ -17,6 +17,10 @@ pub enum ShortcutCommand {
     NarrowControls,
     /// Increase the controls pane width.
     WidenControls,
+    /// Open a new project tab.
+    NewProject,
+    /// Close the active project tab.
+    CloseProject,
 }
 
 /// A platform-independent key used by a configurable workbench shortcut.
@@ -118,6 +122,24 @@ impl Default for ShortcutRegistry {
                         command: true,
                         shift: false,
                         alt: true,
+                    },
+                ),
+                (
+                    ShortcutCommand::NewProject,
+                    ShortcutBinding {
+                        key: ShortcutKey::Character('t'),
+                        command: true,
+                        shift: false,
+                        alt: false,
+                    },
+                ),
+                (
+                    ShortcutCommand::CloseProject,
+                    ShortcutBinding {
+                        key: ShortcutKey::Character('w'),
+                        command: true,
+                        shift: false,
+                        alt: false,
                     },
                 ),
             ]),
@@ -229,6 +251,8 @@ impl ShortcutRegistry {
             ShortcutCommand::Cancel,
             ShortcutCommand::NarrowControls,
             ShortcutCommand::WidenControls,
+            ShortcutCommand::NewProject,
+            ShortcutCommand::CloseProject,
         ] {
             if let Some(binding) = self.binding(command) {
                 let name = match command {
@@ -236,6 +260,8 @@ impl ShortcutRegistry {
                     ShortcutCommand::Cancel => "Cancel",
                     ShortcutCommand::NarrowControls => "Narrow controls pane",
                     ShortcutCommand::WidenControls => "Widen controls pane",
+                    ShortcutCommand::NewProject => "New project tab",
+                    ShortcutCommand::CloseProject => "Close project tab",
                 };
                 let mut key = String::new();
                 if binding.command {

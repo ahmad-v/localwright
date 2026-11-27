@@ -7,6 +7,10 @@ pub enum WorkbenchCommand {
     OpenInput,
     /// Open the native output-file picker.
     ChooseOutput,
+    /// Open a new independent project tab.
+    NewProject,
+    /// Close the active project tab.
+    CloseProject,
     /// Run the selected operation.
     Run,
     /// Request cancellation of the active job.
@@ -63,6 +67,18 @@ pub const COMMAND_REGISTRY: &[CommandDescriptor] = &[
         label: "Save as…",
         menu: CommandMenu::File,
         toolbar: true,
+    },
+    CommandDescriptor {
+        command: WorkbenchCommand::NewProject,
+        label: "New project tab",
+        menu: CommandMenu::File,
+        toolbar: false,
+    },
+    CommandDescriptor {
+        command: WorkbenchCommand::CloseProject,
+        label: "Close project tab",
+        menu: CommandMenu::File,
+        toolbar: false,
     },
     CommandDescriptor {
         command: WorkbenchCommand::Run,
@@ -133,7 +149,7 @@ mod tests {
             assert!(!descriptor.label.is_empty());
             assert!(CommandMenu::all().contains(&descriptor.menu));
         }
-        assert_eq!(commands.len(), 8);
+        assert_eq!(commands.len(), 10);
         assert!(COMMAND_REGISTRY.iter().any(|item| item.toolbar));
     }
 }
