@@ -23,6 +23,40 @@ pub use table::{
     MAX_TABLE_COLUMNS, MAX_TABLE_PAGE_SIZE,
 };
 
+/// One inspected column shown with a table workspace.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TableColumnInfo {
+    /// Source column name.
+    pub name: String,
+    /// Logical type label supplied by the application.
+    pub data_type: String,
+    /// Whether this column contains missing values.
+    pub nullable: bool,
+    /// Number of missing values in the loaded table.
+    pub missing: usize,
+    /// Optional application-defined display label.
+    pub label: Option<String>,
+    /// Optional application-defined unit.
+    pub unit: Option<String>,
+}
+
+/// Reusable native tabular workspace content supplied by an application.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TableWorkspace {
+    /// Workspace heading.
+    pub title: String,
+    /// Short description, such as row count and source file name.
+    pub summary: String,
+    /// Per-column type and metadata inspection.
+    pub schema: Vec<TableColumnInfo>,
+    /// Typed values rendered by the shared paginated table.
+    pub table: TableModel,
+}
+
+/// Converts an application result payload into a native table workspace.
+/// Return `Ok(None)` for results that are not table-workspace payloads.
+pub type TableWorkspaceProvider = fn(&str) -> std::result::Result<Option<TableWorkspace>, String>;
+
 /// A theme name followed by the RGB background, text, and accent colors.
 pub type ThemePreset = (&'static str, [u8; 3], [u8; 3], [u8; 3]);
 
@@ -254,6 +288,7 @@ struct State {
     panes: pane_grid::State<WorkspacePane>,
     workspace_split: pane_grid::Split,
     active_menu: Option<CommandMenu>,
+    table_workspace_provider: Option<TableWorkspaceProvider>,
 }
 
 const MAX_PROJECT_TABS: usize = 32;
@@ -271,6 +306,8 @@ struct Project {
     editor: text_editor::Content,
     preview: String,
     workspace_tab: WorkspaceTab,
+    table_workspace: Option<TableWorkspace>,
+    table_state: TableState,
 }
 
 impl Project {
@@ -291,6 +328,8 @@ impl Project {
             editor: text_editor::Content::new(),
             preview: String::new(),
             workspace_tab: WorkspaceTab::Result,
+            table_workspace: None,
+            table_state: TableState::new(MAX_TABLE_PAGE_SIZE),
         }
     }
 }
@@ -305,6 +344,7 @@ enum WorkspacePane {
 enum WorkspaceTab {
     Result,
     Draft,
+    Table,
 }
 #[derive(Debug, Clone)]
 enum Message {
@@ -330,6 +370,7 @@ enum Message {
     Done(u64, Result<Outcome>),
     Resize(pane_grid::ResizeEvent),
     WorkspaceTab(WorkspaceTab),
+    TableAction(TableAction),
     Menu(CommandMenu),
     Command(WorkbenchCommand),
 }
@@ -586,7 +627,27 @@ impl State {
                         else {
                             return Task::none();
                         };
-                        project.preview = o.preview;
+                        let table_workspace = self
+                            .table_workspace_provider
+                            .map(|provider| provider(&o.preview))
+                            .unwrap_or(Ok(None));
+                        match table_workspace {
+                            Ok(workspace) => {
+                                project.table_state = TableState::new(MAX_TABLE_PAGE_SIZE);
+                                project.table_workspace = workspace;
+                                project.preview = project
+                                    .table_workspace
+                                    .as_ref()
+                                    .map(|table| format!("{}\n{}", table.title, table.summary))
+                                    .unwrap_or(o.preview);
+                            }
+                            Err(error) => {
+                                project.table_workspace = None;
+                                project.preview =
+                                    format!("Could not prepare the table workspace: {error}");
+                                self.status = "Table workspace unavailable".into();
+                            }
+                        }
                         for warning in o.warnings {
                             project.preview.push_str(&format!("\nWarning: {warning}"));
                         }
@@ -613,6 +674,25 @@ impl State {
                 }
             }
             Message::WorkspaceTab(tab) => self.active_project_mut().workspace_tab = tab,
+            Message::TableAction(action) => {
+                let project = self.active_project_mut();
+                if let Some(workspace) = &mut project.table_workspace {
+                    let row_count = workspace.table.row_count();
+                    match action {
+                        TableAction::PageChanged(page) => {
+                            project.table_state.set_page(page, row_count)
+                        }
+                        TableAction::SelectRow(row) => {
+                            project.table_state.select_row(row, row_count)
+                        }
+                        TableAction::SortBy { column, direction } => {
+                            if workspace.table.sort_by(column, direction).is_ok() {
+                                project.table_state.set_sort(column, direction);
+                            }
+                        }
+                    }
+                }
+            }
             Message::Menu(menu) => {
                 self.active_menu = if self.active_menu == Some(menu) {
                     None
@@ -855,12 +935,18 @@ impl State {
                 )
                 .into(),
                 WorkspacePane::Workspace => {
-                    let tabs = row![
+                    let mut tabs = row![
                         button("Results").on_press(Message::WorkspaceTab(WorkspaceTab::Result)),
                         button("Draft / transcript")
                             .on_press(Message::WorkspaceTab(WorkspaceTab::Draft)),
                     ]
                     .spacing(8);
+                    if self.table_workspace_provider.is_some() {
+                        tabs = tabs.push(
+                            button("Data table")
+                                .on_press(Message::WorkspaceTab(WorkspaceTab::Table)),
+                        );
+                    }
                     let panel = match project.workspace_tab {
                         WorkspaceTab::Result => {
                             let result: Element<'_, Message> = preview_table(&project.preview)
@@ -890,6 +976,41 @@ impl State {
                             }
                         },]
                         .spacing(8),
+                        WorkspaceTab::Table => match &project.table_workspace {
+                            Some(workspace) => {
+                                let schema = column(workspace.schema.iter().map(|column| {
+                                    let mut details = format!(
+                                        "{} · {} · {} missing",
+                                        column.name, column.data_type, column.missing
+                                    );
+                                    if let Some(label) = &column.label {
+                                        details.push_str(&format!(" · {label}"));
+                                    }
+                                    if let Some(unit) = &column.unit {
+                                        details.push_str(&format!(" ({unit})"));
+                                    }
+                                    text(details).into()
+                                }))
+                                .spacing(2);
+                                column![
+                                    text(&workspace.title),
+                                    text(&workspace.summary),
+                                    text("Schema and column metadata"),
+                                    scrollable(schema).height(Length::Fixed(120.0)),
+                                    paginated_table(
+                                        &workspace.table,
+                                        &project.table_state,
+                                        Message::TableAction
+                                    ),
+                                ]
+                                .spacing(8)
+                            }
+                            None => column![
+                                text("No typed table is available for this result."),
+                                text("Load a supported table and run the Inspect typed table operation."),
+                            ]
+                            .spacing(8),
+                        },
                     };
                     scrollable(
                         container(
@@ -976,7 +1097,7 @@ fn input_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
 /// handler is responsible for input limits, error handling, and checking for
 /// cancellation. An empty operation list displays the shell without a Run action.
 pub fn run(title: &'static str, ops: &'static [Operation], handler: Handler) -> iced::Result {
-    run_workbench(title, ops, handler, None)
+    run_workbench(title, ops, handler, None, None)
 }
 
 /// Open the workbench with appearance and workspace preferences saved under a stable application key.
@@ -991,7 +1112,30 @@ pub fn run_with_saved_appearance(
     ops: &'static [Operation],
     handler: Handler,
 ) -> iced::Result {
-    run_workbench(title, ops, handler, app_preferences_path(app_key))
+    run_workbench(title, ops, handler, app_preferences_path(app_key), None)
+}
+
+/// Open the standard workbench with a reusable paginated table workspace.
+///
+/// The provider receives the operation result payload after the background
+/// handler completes. It should return `Ok(None)` for ordinary results and a
+/// bounded [`TableWorkspace`] for table payloads. The Results and Draft tabs
+/// remain available; the extra Table tab owns paging, selection and sort state
+/// independently for each project.
+pub fn run_with_saved_appearance_and_table_workspace(
+    title: &'static str,
+    app_key: &'static str,
+    ops: &'static [Operation],
+    handler: Handler,
+    provider: TableWorkspaceProvider,
+) -> iced::Result {
+    run_workbench(
+        title,
+        ops,
+        handler,
+        app_preferences_path(app_key),
+        Some(provider),
+    )
 }
 
 fn run_workbench(
@@ -999,6 +1143,7 @@ fn run_workbench(
     ops: &'static [Operation],
     handler: Handler,
     preferences_path: Option<PathBuf>,
+    table_workspace_provider: Option<TableWorkspaceProvider>,
 ) -> iced::Result {
     let (preferences, preferences_error) = match preferences_path.as_deref().map(Preferences::load)
     {
@@ -1039,6 +1184,7 @@ fn run_workbench(
                     panes,
                     workspace_split: split,
                     active_menu: None,
+                    table_workspace_provider,
                 },
                 Task::none(),
             )
@@ -1048,6 +1194,38 @@ fn run_workbench(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_table_workspace(
+        _payload: &str,
+    ) -> std::result::Result<Option<TableWorkspace>, String> {
+        let rows = (0..205)
+            .map(|value| {
+                vec![
+                    CellValue::Integer((204 - value) as i64),
+                    match value {
+                        0 => CellValue::Text(String::new()),
+                        1 => CellValue::Null,
+                        _ => CellValue::Text(format!("row {value}")),
+                    },
+                ]
+            })
+            .collect();
+        let table = TableModel::new(vec!["score".into(), "note".into()], rows)
+            .map_err(|error| error.to_string())?;
+        Ok(Some(TableWorkspace {
+            title: "Typed data".into(),
+            summary: "205 rows".into(),
+            schema: vec![TableColumnInfo {
+                name: "score".into(),
+                data_type: "int64".into(),
+                nullable: true,
+                missing: 1,
+                label: None,
+                unit: None,
+            }],
+            table,
+        }))
+    }
 
     fn state_for_test() -> State {
         let ops = &[Operation {
@@ -1078,7 +1256,44 @@ mod tests {
             panes,
             workspace_split,
             active_menu: None,
+            table_workspace_provider: None,
         }
+    }
+
+    #[test]
+    fn table_workspace_provider_renders_data_and_updates_page_sort_selection() {
+        let mut state = state_for_test();
+        state.table_workspace_provider = Some(sample_table_workspace);
+        let _ = state.update(Message::Done(
+            1,
+            Ok(Outcome {
+                preview: "table payload".into(),
+                ..Outcome::default()
+            }),
+        ));
+        let project = state.active_project();
+        let workspace = project.table_workspace.as_ref().unwrap();
+        assert_eq!(workspace.table.row_count(), 205);
+        assert_eq!(workspace.schema[0].data_type, "int64");
+        assert!(matches!(
+            workspace.table.value_at(0, 1),
+            Some(CellValue::Text(value)) if value.is_empty()
+        ));
+        assert_eq!(workspace.table.value_at(1, 1), Some(&CellValue::Null));
+        assert!(project.preview.contains("205 rows"));
+
+        let _ = state.update(Message::TableAction(TableAction::PageChanged(99)));
+        assert_eq!(state.active_project().table_state.current_page(205), 2);
+        let _ = state.update(Message::TableAction(TableAction::SelectRow(102)));
+        assert_eq!(state.active_project().table_state.selected_row(), Some(102));
+        let _ = state.update(Message::TableAction(TableAction::SortBy {
+            column: 0,
+            direction: SortDirection::Ascending,
+        }));
+        assert_eq!(
+            state.active_project().table_state.sort(),
+            Some((0, SortDirection::Ascending))
+        );
     }
 
     fn luminance(color: Color) -> f32 {

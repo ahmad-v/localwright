@@ -41,4 +41,6 @@ The common action registry is exposed as `COMMAND_REGISTRY` with `WorkbenchComma
 
 Run the standalone example with `cargo run -p localwright-ui --example paginated_table`. It demonstrates integer, categorical, floating-point, Boolean and null values, page navigation, header sorting and row selection.
 
+Applications that want to show a typed table in the standard workbench can use `run_with_saved_appearance_and_table_workspace`. The application supplies a `TableWorkspaceProvider`, which converts its result payload into `TableWorkspace` metadata plus a validated `TableModel`. The workbench adds a per-project Data table tab, schema summary, paging, row selection and typed sorting while retaining the existing Results and Draft tabs. Providers should keep payloads bounded and return `Ok(None)` for ordinary operation results.
+
 See the MIT and Apache-2.0 license texts and third-party notices included in this package.
