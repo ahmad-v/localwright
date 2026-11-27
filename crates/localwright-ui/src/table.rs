@@ -138,6 +138,11 @@ impl TableModel {
         self.rows.len()
     }
 
+    /// Read one typed cell by its absolute zero-based row and column indices.
+    pub fn value_at(&self, row: usize, column: usize) -> Option<&CellValue> {
+        self.rows.get(row)?.get(column)
+    }
+
     /// Sort rows by one typed column. Null values remain last in both directions.
     pub fn sort_by(&mut self, column: usize, direction: SortDirection) -> Result<(), TableError> {
         if column >= self.headers.len() {
@@ -285,7 +290,8 @@ impl TableState {
         (column, direction)
     }
 
-    fn sort(&self) -> Option<(usize, SortDirection)> {
+    /// Current typed sort column and direction, if the user has sorted the table.
+    pub fn sort(&self) -> Option<(usize, SortDirection)> {
         self.sort
     }
 }
