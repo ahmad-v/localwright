@@ -65,6 +65,15 @@
         "x86_64-unknown-linux-gnu"
       ],
       "fixture_status": "17 unit tests and workspace compile passed; native-device interaction pending"
+    },
+    {
+      "operation": "typed-table-workspace",
+      "description": "Reusable paginated Iced table with typed stable sorting, null preservation, row selection, and case-insensitive filtering over bounded loaded previews; standalone example included.",
+      "status": "implemented-unverified",
+      "targets": [
+        "x86_64-unknown-linux-gnu"
+      ],
+      "fixture_status": "37 Localwright UI tests and table example compile passed locally; native interaction and consumer integration pending"
     }
   ]
 }

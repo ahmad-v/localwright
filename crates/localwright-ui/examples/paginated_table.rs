@@ -1,5 +1,5 @@
 use iced::{
-    widget::{column, text},
+    widget::{column, text, text_input},
     Element, Length, Task,
 };
 use localwright_ui::{paginated_table, CellValue, TableAction, TableModel, TableState};
@@ -7,16 +7,25 @@ use localwright_ui::{paginated_table, CellValue, TableAction, TableModel, TableS
 struct TableDemo {
     table: TableModel,
     state: TableState,
+    filter: String,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Message {
     Table(TableAction),
+    Filter(String),
 }
 
 impl TableDemo {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Filter(filter) => {
+                if self.table.filter_contains(&filter).is_ok() {
+                    self.filter = filter;
+                    self.state.set_page(0, self.table.row_count());
+                    self.state.select_row(usize::MAX, self.table.row_count());
+                }
+            }
             Message::Table(TableAction::PageChanged(page)) => {
                 self.state.set_page(page, self.table.row_count());
             }
@@ -40,7 +49,11 @@ impl TableDemo {
             .unwrap_or_else(|| "Select a row using its row button".into());
         column![
             text("Localwright bounded table example").size(22),
-            text("Only 25 rows are rendered per page; each header sorts its typed column."),
+            text(
+                "Only 25 rows are rendered per page; sort typed columns or filter the loaded rows."
+            ),
+            text_input("Search values in loaded rows", &self.filter).on_input(Message::Filter),
+            text(format!("{} rows match", self.table.row_count())),
             text(selection),
             paginated_table(&self.table, &self.state, Message::Table),
         ]
@@ -85,6 +98,7 @@ fn main() -> iced::Result {
                 )
                 .expect("the sample schema is valid"),
                 state: TableState::new(25),
+                filter: String::new(),
             },
             Task::none(),
         )
