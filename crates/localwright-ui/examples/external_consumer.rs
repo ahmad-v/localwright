@@ -12,7 +12,7 @@ fn main() -> iced::Result {
         &[Operation {
             id: "count",
             label: "Count",
-            hint: "Enter text in the parameter field",
+            hint: "Enter text, then use + Project to keep multiple independent workspaces open. Switch tabs with Ctrl+Tab or Ctrl+Shift+Tab.",
         }],
         handle,
     )
