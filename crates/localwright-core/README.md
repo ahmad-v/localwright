@@ -1,6 +1,6 @@
 # localwright-core
 
-Local application contracts, cooperative jobs, bounded file I/O, scientific SVG figures and a private engine runtime. This crate has no GUI dependency.
+Local application contracts, cooperative jobs, bounded file I/O, scientific SVG figures and a private engine runtime. Figure exports support monochrome-safe and marker/dash series styles, plus optional visible title and axis labels that are bounded and XML-escaped. This crate has no GUI dependency.
 
 ```toml
 [dependencies]
@@ -16,6 +16,31 @@ fn main() -> localwright_core::Result<()> {
     let data = read_bounded(std::path::Path::new("input.txt"), 64 * 1024)?;
     write_bytes(std::path::Path::new("output.txt"), &data)?;
     Ok(())
+}
+```
+
+Create a labeled SVG directly or export it to a new path:
+
+```rust,no_run
+use localwright_core::figure::{
+    export_scatter_svg_labeled, FigureLabels, SeriesStyle,
+};
+
+fn main() -> localwright_core::Result<()> {
+    let points = [(0.0, 1.2), (1.0, 1.8), (2.0, 2.6)];
+    let labels = FigureLabels {
+        title: "Measurement response",
+        x_axis: "Concentration (mg/L)",
+        y_axis: "Response (a.u.)",
+    };
+    export_scatter_svg_labeled(
+        std::path::Path::new("figure.svg"),
+        &points,
+        900,
+        600,
+        SeriesStyle::MONOCHROME,
+        labels,
+    )
 }
 ```
 

@@ -22,6 +22,28 @@ pub struct SeriesStyle {
     pub dashed: bool,
 }
 
+/// Descriptive labels rendered into a scientific figure's visible title and axes.
+/// Text is bounded and escaped before it is inserted into SVG markup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FigureLabels<'a> {
+    pub title: &'a str,
+    pub x_axis: &'a str,
+    pub y_axis: &'a str,
+}
+
+impl FigureLabels<'_> {
+    fn validate(self) -> Result<Self> {
+        for label in [self.title, self.x_axis, self.y_axis] {
+            if label.chars().count() > 256 || label.chars().any(char::is_control) {
+                return Err(Error::input(
+                    "Figure labels must contain at most 256 printable characters",
+                ));
+            }
+        }
+        Ok(self)
+    }
+}
+
 impl SeriesStyle {
     /// A black, solid circle style suitable for monochrome export.
     pub const MONOCHROME: Self = Self {
@@ -47,6 +69,7 @@ pub fn scatter_svg(points: &[(f64, f64)], width: u32, height: u32) -> Result<Str
         height,
         PlotKind::Scatter,
         SeriesStyle::MONOCHROME,
+        None,
     )
 }
 
@@ -61,6 +84,7 @@ pub fn line_svg(points: &[(f64, f64)], width: u32, height: u32) -> Result<String
         height,
         PlotKind::Line,
         SeriesStyle::MONOCHROME,
+        None,
     )
 }
 
@@ -72,7 +96,7 @@ pub fn scatter_svg_styled(
     style: SeriesStyle,
 ) -> Result<String> {
     let style = style.validate()?;
-    plot_svg(points, width, height, PlotKind::Scatter, style)
+    plot_svg(points, width, height, PlotKind::Scatter, style, None)
 }
 
 /// Render a line plot with color and dash pattern as independent series channels.
@@ -83,7 +107,76 @@ pub fn line_svg_styled(
     style: SeriesStyle,
 ) -> Result<String> {
     let style = style.validate()?;
-    plot_svg(points, width, height, PlotKind::Line, style)
+    plot_svg(points, width, height, PlotKind::Line, style, None)
+}
+
+/// Render a scatterplot with visible title and scientific axis labels.
+pub fn scatter_svg_labeled(
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    style: SeriesStyle,
+    labels: FigureLabels<'_>,
+) -> Result<String> {
+    plot_svg(
+        points,
+        width,
+        height,
+        PlotKind::Scatter,
+        style.validate()?,
+        Some(labels.validate()?),
+    )
+}
+
+/// Render a line chart with visible title and scientific axis labels.
+pub fn line_svg_labeled(
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    style: SeriesStyle,
+    labels: FigureLabels<'_>,
+) -> Result<String> {
+    if points.len() < 2 {
+        return Err(Error::input("A line chart requires at least two points"));
+    }
+    plot_svg(
+        points,
+        width,
+        height,
+        PlotKind::Line,
+        style.validate()?,
+        Some(labels.validate()?),
+    )
+}
+
+/// Export a labeled scatter figure to a new SVG path without overwriting an existing file.
+pub fn export_scatter_svg_labeled(
+    path: &Path,
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    style: SeriesStyle,
+    labels: FigureLabels<'_>,
+) -> Result<()> {
+    write_bytes(
+        path,
+        scatter_svg_labeled(points, width, height, style, labels)?.as_bytes(),
+    )
+}
+
+/// Export a labeled line figure to a new SVG path without overwriting an existing file.
+pub fn export_line_svg_labeled(
+    path: &Path,
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+    style: SeriesStyle,
+    labels: FigureLabels<'_>,
+) -> Result<()> {
+    write_bytes(
+        path,
+        line_svg_labeled(points, width, height, style, labels)?.as_bytes(),
+    )
 }
 
 enum PlotKind {
@@ -97,6 +190,7 @@ fn plot_svg(
     height: u32,
     kind: PlotKind,
     style: SeriesStyle,
+    labels: Option<FigureLabels<'_>>,
 ) -> Result<String> {
     if points.is_empty()
         || points.len() > 10000
@@ -126,23 +220,39 @@ fn plot_svg(
         return Err(Error::input("Axes need nonconstant finite ranges"));
     }
     let (w, h) = (width as f64, height as f64);
-    let title = match kind {
+    let default_title = match kind {
         PlotKind::Scatter => "Scatter plot",
         PlotKind::Line => "Line chart",
     };
+    let title = labels.map_or(default_title, |labels| labels.title);
+    let title = escape_xml(title);
+    let (left, top, right, bottom) = if labels.is_some() {
+        (72.0, 40.0, 24.0, 66.0)
+    } else {
+        (60.0, 20.0, 20.0, 50.0)
+    };
+    let plot_bottom = h - bottom;
+    let plot_width = w - left - right;
+    let plot_height = plot_bottom - top;
     let mut s = format!(
-        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img"><title>{title}</title><rect width="100%" height="100%" fill="white"/><g stroke="black" fill="none"><path d="M 60 20 V {} H {}"/>"#,
-        h - 50.0,
-        w - 20.0
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img"><title>{title}</title><rect width="100%" height="100%" fill="white"/><g stroke="black" fill="none"><path d="M {left} {top} V {plot_bottom} H {}"/>"#,
+        w - right
     );
+    if labels.is_some() {
+        let _ = write!(
+            s,
+            r#"<text x="{}" y="22" text-anchor="middle" fill="black" font-size="14" font-family="sans-serif" textLength="{plot_width}" lengthAdjust="spacingAndGlyphs">{title}</text>"#,
+            (left + w - right) / 2.0
+        );
+    }
     let coordinates = points.iter().map(|&(x, y)| {
-        let px = 60.0 + (x - xmin) / (xmax - xmin) * (w - 80.0);
+        let px = left + (x - xmin) / (xmax - xmin) * plot_width;
         let y_fraction = if ymin == ymax {
             0.5
         } else {
             (y - ymin) / (ymax - ymin)
         };
-        let py = h - 50.0 - y_fraction * (h - 70.0);
+        let py = plot_bottom - y_fraction * plot_height;
         (px, py)
     });
     match kind {
@@ -221,26 +331,57 @@ fn plot_svg(
     }
     let _ = write!(
         s,
-        r#"</g><g fill="black" font-size="12" font-family="sans-serif"><text x="60" y="{}">{xmin:.4}</text><text x="{}" y="{}" text-anchor="end">{xmax:.4}</text>"#,
-        h - 32.0,
-        w - 20.0,
-        h - 32.0
+        r#"</g><g fill="black" font-size="12" font-family="sans-serif"><text x="{left}" y="{}">{xmin:.4}</text><text x="{}" y="{}" text-anchor="end">{xmax:.4}</text>"#,
+        if labels.is_some() { h - 44.0 } else { h - 32.0 },
+        w - right,
+        if labels.is_some() { h - 44.0 } else { h - 32.0 }
     );
     if ymin == ymax {
         let _ = write!(
             s,
-            r#"<text x="5" y="{}">{ymin:.4}</text>"#,
-            (h - 30.0) / 2.0
+            r#"<text x="{}" y="{}" text-anchor="end">{ymin:.4}</text>"#,
+            left - 8.0,
+            (top + plot_bottom) / 2.0
         );
     } else {
         let _ = write!(
             s,
-            r#"<text x="5" y="20">{ymax:.4}</text><text x="5" y="{}">{ymin:.4}</text>"#,
-            h - 50.0
+            r#"<text x="{}" y="{}" text-anchor="end">{ymax:.4}</text><text x="{}" y="{}" text-anchor="end">{ymin:.4}</text>"#,
+            left - 8.0,
+            top + 4.0,
+            left - 8.0,
+            plot_bottom
+        );
+    }
+    if let Some(labels) = labels {
+        let x_axis = escape_xml(labels.x_axis);
+        let y_axis = escape_xml(labels.y_axis);
+        let _ = write!(
+            s,
+            r#"<text x="{}" y="{}" text-anchor="middle" fill="black" font-size="12" font-family="sans-serif" textLength="{plot_width}" lengthAdjust="spacingAndGlyphs">{x_axis}</text><text x="16" y="{}" transform="rotate(-90 16 {})" text-anchor="middle" fill="black" font-size="12" font-family="sans-serif" textLength="{plot_height}" lengthAdjust="spacingAndGlyphs">{y_axis}</text>"#,
+            (left + w - right) / 2.0,
+            h - 10.0,
+            (top + plot_bottom) / 2.0,
+            (top + plot_bottom) / 2.0
         );
     }
     s.push_str("</g></svg>");
     Ok(s)
+}
+
+fn escape_xml(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&apos;"),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
 }
 pub fn export_scatter(path: &Path, points: &[(f64, f64)], width: u32, height: u32) -> Result<()> {
     write_bytes(path, scatter_svg(points, width, height)?.as_bytes())
@@ -299,6 +440,83 @@ mod tests {
             SeriesStyle {
                 color: "red\" onload=\"x",
                 ..style
+            }
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn labeled_figure_escapes_metadata_and_reserves_axis_margins() {
+        let labels = FigureLabels {
+            title: "Dose < response",
+            x_axis: "Dose & time (mg·h)",
+            y_axis: "Δ response %",
+        };
+        let figure = scatter_svg_labeled(
+            &[(0.0, 1.0), (1.0, 3.0)],
+            640,
+            480,
+            SeriesStyle::MONOCHROME,
+            labels,
+        )
+        .unwrap();
+
+        assert!(figure.contains("<title>Dose &lt; response</title>"));
+        assert!(figure.contains(">Dose &lt; response</text>"));
+        assert!(figure.contains("Dose &amp; time (mg·h)</text>"));
+        assert!(figure.contains("rotate(-90 16 227)"));
+        assert!(figure.contains("M 72 40 V 414 H 616"));
+        assert!(!figure.contains("<image"));
+
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("dose-response.svg");
+        export_scatter_svg_labeled(
+            &output,
+            &[(0.0, 1.0), (1.0, 3.0)],
+            640,
+            480,
+            SeriesStyle::MONOCHROME,
+            labels,
+        )
+        .unwrap();
+        assert_eq!(std::fs::read_to_string(&output).unwrap(), figure);
+        assert!(export_scatter_svg_labeled(
+            &output,
+            &[(0.0, 1.0), (1.0, 3.0)],
+            640,
+            480,
+            SeriesStyle::MONOCHROME,
+            labels,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn labeled_line_chart_rejects_control_and_unbounded_labels() {
+        let points = [(0.0, 1.0), (1.0, 2.0)];
+        let style = SeriesStyle::MONOCHROME;
+        assert!(line_svg_labeled(
+            &points,
+            640,
+            480,
+            style,
+            FigureLabels {
+                title: "bad\nlabel",
+                x_axis: "x",
+                y_axis: "y",
+            }
+        )
+        .is_err());
+        let long_label = "x".repeat(257);
+        assert!(line_svg_labeled(
+            &points,
+            640,
+            480,
+            style,
+            FigureLabels {
+                title: &long_label,
+                x_axis: "x",
+                y_axis: "y",
             }
         )
         .is_err());
