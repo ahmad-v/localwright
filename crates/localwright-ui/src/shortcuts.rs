@@ -152,8 +152,7 @@ impl ShortcutRegistry {
                         shift: flags & 2 != 0,
                         alt: flags & 4 != 0,
                     };
-                    (!self.bindings.values().any(|current| current == &binding))
-                        .then_some(binding)
+                    (!self.bindings.values().any(|current| current == &binding)).then_some(binding)
                 })
             };
             if let Some(binding) = candidate {
