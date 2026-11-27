@@ -6,14 +6,14 @@ Alpha source is on GitHub. The Linux x86_64 build and unit tests passed during i
 |---|---|---|
 | settings | JSON settings parse/save-new | Linux unit-tested |
 | jobs | Single background job and cooperative cancellation | Core cancellation unit-tested on Linux |
-| themes | 20 client-area presets, widget borders, 80–300% UI scale, persisted appearance and resizable controls/workspace layout | Linux contrast-tested; pane layout preferences fixture-tested |
+| themes | 20 client-area presets, widget borders, 80–300% UI scale, persisted appearance, toolbar visibility and resizable controls/workspace layout | Linux contrast-tested; existing preferences migration and toolbar persistence fixture tests added on unverified head |
 | figures | Monochrome vector scatter/line SVG plus validated series colors, five marker geometries and dashed lines | Linux unit-tested on merged baseline `0862988` |
 | project-tabs | Up to 32 session-local workspaces, independent operation state, mouse and Ctrl+Tab navigation, close-time cancellation | Implemented on `codex/multiple-project-tabs`; hosted tests pending |
-| external-consumer | Independent character-count GUI example; updated to explain independent project tabs | Prior Linux virtual-display launch passed; tab interaction pending hosted GUI check |
+| external-consumer | Independent character-count GUI example using saved appearance/workspace preferences; explains project tabs and persistent toolbar toggle | Prior Linux virtual-display launch passed; new toolbar preference and hosted GUI check pending |
 
 ## Known gaps
 
-Only two crates; settings schema is a library API, not automatically persisted by UI. Applications can opt into persistent theme, scale, shortcuts and a validated 20–70% sidebar ratio. The basic `run` entry point remains session-only. Project tabs and their documents are also session-only and are capped at 32. Detachable panels, keyboard split resizing, system theme detection, icon pack, localization, complete accessibility and scientific palette suite remain open. The new engine runtime does not provide OS sandboxing or hard resource quotas.
+Only two crates; settings schema is a library API, not automatically persisted by UI. Applications can opt into persistent theme, scale, toolbar visibility, shortcuts and a validated 20–70% sidebar ratio. The basic `run` entry point remains session-only. Project tabs and their documents are also session-only and are capped at 32. Detachable panels, system theme detection, icon pack, localization, complete accessibility and scientific palette suite remain open. The new engine runtime does not provide OS sandboxing or hard resource quotas.
 
 The Localwright merged baseline passed its current Linux x64, Linux ARM64, Windows x64, Windows ARM64 and Apple Silicon jobs, plus Quick and Integration checks. This verifies compilation and the automated fixtures at that commit; it does not establish every studio's current native acceptance, physical-device behavior or complete GUI accessibility. See [verification evidence](VERIFICATION.md) and [dependency review](DEPENDENCIES.md).
 

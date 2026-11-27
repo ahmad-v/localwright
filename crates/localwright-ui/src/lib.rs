@@ -9,7 +9,7 @@ use iced::{
     theme::Palette,
     widget::{
         button, column, container, pane_grid, pick_list, row, scrollable, text, text_editor,
-        text_input,
+        text_input, toggler,
     },
     Border, Color, Element, Length, Subscription, Task, Theme,
 };
@@ -313,6 +313,7 @@ enum Message {
     Edit(text_editor::Action),
     Theme(String),
     Scale(u16),
+    ToolbarVisible(bool),
     ShortcutKey(ShortcutCommand, String),
     PickInput,
     InputPicked(u64, Option<PathBuf>),
@@ -437,6 +438,10 @@ impl State {
             }
             Message::Scale(v) => {
                 self.preferences.scale = v;
+                self.save_preferences();
+            }
+            Message::ToolbarVisible(visible) => {
+                self.preferences.toolbar_visible = visible;
                 self.save_preferences();
             }
             Message::ShortcutKey(command, label) => {
@@ -627,6 +632,11 @@ impl State {
                         self.status = self.preferences.shortcuts.summary();
                         Task::none()
                     }
+                    WorkbenchCommand::ToggleToolbar => {
+                        self.preferences.toolbar_visible = !self.preferences.toolbar_visible;
+                        self.save_preferences();
+                        Task::none()
+                    }
                 };
             }
         }
@@ -751,6 +761,9 @@ impl State {
                             ]
                             .spacing(16)
                             .wrap(),
+                            toggler(self.preferences.toolbar_visible)
+                                .label("Show toolbar")
+                                .on_toggle(Message::ToolbarVisible),
                             text(hint),
                             text("Input path"),
                             row![
@@ -896,7 +909,10 @@ impl State {
         if let Some(items) = menu_items {
             shell = shell.push(items);
         }
-        shell = shell.push(toolbar).push(content).spacing(8).padding(8);
+        if self.preferences.toolbar_visible {
+            shell = shell.push(toolbar);
+        }
+        shell = shell.push(content).spacing(8).padding(8);
         container(shell)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -958,11 +974,12 @@ pub fn run(title: &'static str, ops: &'static [Operation], handler: Handler) -> 
     run_workbench(title, ops, handler, None)
 }
 
-/// Open the workbench with theme and scale saved under a stable application key.
+/// Open the workbench with appearance and workspace preferences saved under a stable application key.
 ///
 /// Keys use lowercase ASCII letters, digits and hyphens. The application stores only
-/// its theme and scale in the user configuration directory. Input paths and drafts
-/// are session data. When preferences are unavailable, the workbench uses defaults.
+/// its theme, scale, toolbar visibility, pane ratio and shortcuts in the user
+/// configuration directory. Input paths and drafts are session data. When
+/// preferences are unavailable, the workbench uses defaults.
 pub fn run_with_saved_appearance(
     title: &'static str,
     app_key: &'static str,
@@ -1175,6 +1192,16 @@ mod tests {
         assert_eq!(state.preferences.panel_ratio, 70);
         state.resize_controls(5);
         assert_eq!(state.preferences.panel_ratio, 70);
+    }
+
+    #[test]
+    fn toolbar_visibility_command_toggles_the_persisted_preference() {
+        let mut state = state_for_test();
+        assert!(state.preferences.toolbar_visible);
+        let _ = state.update(Message::Command(WorkbenchCommand::ToggleToolbar));
+        assert!(!state.preferences.toolbar_visible);
+        let _ = state.update(Message::Command(WorkbenchCommand::ToggleToolbar));
+        assert!(state.preferences.toolbar_visible);
     }
 
     #[test]

@@ -20,10 +20,17 @@ pub(super) struct Preferences {
     pub panel_ratio: u8,
     #[serde(default)]
     pub shortcuts: ShortcutRegistry,
+    /// Whether the common action toolbar is shown.
+    #[serde(default = "default_toolbar_visible")]
+    pub toolbar_visible: bool,
 }
 
 fn default_panel_ratio() -> u8 {
     34
+}
+
+fn default_toolbar_visible() -> bool {
+    true
 }
 
 impl Default for Preferences {
@@ -34,6 +41,7 @@ impl Default for Preferences {
             scale: 100,
             panel_ratio: default_panel_ratio(),
             shortcuts: ShortcutRegistry::default(),
+            toolbar_visible: default_toolbar_visible(),
         }
     }
 }
@@ -150,6 +158,7 @@ mod tests {
         let loaded = Preferences::load(&path).unwrap();
         assert_eq!(loaded.shortcuts, ShortcutRegistry::default());
         assert_eq!(loaded.panel_ratio, 34);
+        assert!(loaded.toolbar_visible);
     }
 
     #[test]
@@ -188,5 +197,24 @@ mod tests {
         prefs.panel_ratio = 70;
         prefs.save(&path).unwrap();
         assert_eq!(Preferences::load(&path).unwrap().panel_ratio, 70);
+    }
+
+    #[test]
+    fn persists_toolbar_visibility_and_migrates_older_preferences() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("app/workbench.json");
+        let prefs = Preferences {
+            toolbar_visible: false,
+            ..Preferences::default()
+        };
+        prefs.save(&path).unwrap();
+        assert!(!Preferences::load(&path).unwrap().toolbar_visible);
+
+        fs::write(
+            &path,
+            br#"{"schema_version":1,"theme":"Modern Light","scale":100}"#,
+        )
+        .unwrap();
+        assert!(Preferences::load(&path).unwrap().toolbar_visible);
     }
 }
