@@ -307,6 +307,7 @@ struct Project {
     preview: String,
     workspace_tab: WorkspaceTab,
     table_workspace: Option<TableWorkspace>,
+    table_filter: String,
     table_state: TableState,
 }
 
@@ -329,6 +330,7 @@ impl Project {
             preview: String::new(),
             workspace_tab: WorkspaceTab::Result,
             table_workspace: None,
+            table_filter: String::new(),
             table_state: TableState::new(MAX_TABLE_PAGE_SIZE),
         }
     }
@@ -389,6 +391,7 @@ enum Message {
     Done(u64, Result<Outcome>),
     Resize(pane_grid::ResizeEvent),
     WorkspaceTab(WorkspaceTab),
+    TableFilter(String),
     TableAction(TableAction),
     Menu(CommandMenu),
     Command(WorkbenchCommand),
@@ -706,6 +709,7 @@ impl State {
                         match table_workspace {
                             Ok(workspace) => {
                                 project.table_state = TableState::new(MAX_TABLE_PAGE_SIZE);
+                                project.table_filter.clear();
                                 project.table_workspace = workspace;
                                 project.preview = project
                                     .table_workspace
@@ -746,6 +750,32 @@ impl State {
                 }
             }
             Message::WorkspaceTab(tab) => self.active_project_mut().workspace_tab = tab,
+            Message::TableFilter(filter) => {
+                let status = {
+                    let project = self.active_project_mut();
+                    if let Some(workspace) = &mut project.table_workspace {
+                        match workspace.table.filter_contains(&filter) {
+                            Ok(()) => {
+                                project.table_filter = filter;
+                                project.table_state.set_page(0, workspace.table.row_count());
+                                project
+                                    .table_state
+                                    .select_row(usize::MAX, workspace.table.row_count());
+                                format!(
+                                    "Showing {} matching loaded rows",
+                                    workspace.table.row_count()
+                                )
+                            }
+                            Err(error) => error.to_string(),
+                        }
+                    } else {
+                        String::new()
+                    }
+                };
+                if !status.is_empty() {
+                    self.status = status;
+                }
+            }
             Message::TableAction(action) => {
                 let project = self.active_project_mut();
                 if let Some(workspace) = &mut project.table_workspace {
@@ -1102,6 +1132,11 @@ impl State {
                                 column![
                                     text(&workspace.title),
                                     text(&workspace.summary),
+                                    text("Filter loaded preview rows"),
+                                    text_input("Search values in the loaded table", &project.table_filter)
+                                        .on_input(Message::TableFilter)
+                                        .padding(8),
+                                    text(format!("{} rows match the filter", workspace.table.row_count())),
                                     text("Schema and column metadata"),
                                     scrollable(schema).height(Length::Fixed(120.0)),
                                     paginated_table(

@@ -59,6 +59,19 @@ impl CellValue {
         }
     }
 
+    fn matches_lowercase(&self, needle: &str) -> bool {
+        match self {
+            Self::Text(value) | Self::DateTime(value) | Self::Categorical(value) => {
+                value.to_lowercase().contains(needle)
+            }
+            Self::Null => "(null)".contains(needle),
+            Self::Integer(value) => value.to_string().contains(needle),
+            Self::UnsignedInteger(value) => value.to_string().contains(needle),
+            Self::Float(value) => value.to_string().contains(needle),
+            Self::Boolean(value) => value.to_string().contains(needle),
+        }
+    }
+
     fn compare(&self, other: &Self) -> Ordering {
         use CellValue::*;
         match (self, other) {
@@ -90,6 +103,9 @@ pub enum SortDirection {
 pub struct TableModel {
     headers: Vec<String>,
     rows: Vec<Vec<CellValue>>,
+    visible_rows: Vec<usize>,
+    filter: String,
+    sort: Option<(usize, SortDirection)>,
 }
 
 impl TableModel {
@@ -125,7 +141,13 @@ impl TableModel {
                 }
             }
         }
-        Ok(Self { headers, rows })
+        Ok(Self {
+            headers,
+            visible_rows: (0..rows.len()).collect(),
+            rows,
+            filter: String::new(),
+            sort: None,
+        })
     }
 
     /// Column names in display order.
@@ -135,12 +157,12 @@ impl TableModel {
 
     /// Number of rows in the model.
     pub fn row_count(&self) -> usize {
-        self.rows.len()
+        self.visible_rows.len()
     }
 
     /// Read one typed cell by its absolute zero-based row and column indices.
     pub fn value_at(&self, row: usize, column: usize) -> Option<&CellValue> {
-        self.rows.get(row)?.get(column)
+        self.rows.get(*self.visible_rows.get(row)?)?.get(column)
     }
 
     /// Sort rows by one typed column. Null values remain last in both directions.
@@ -148,28 +170,59 @@ impl TableModel {
         if column >= self.headers.len() {
             return Err(TableError::ColumnOutOfRange);
         }
-        self.rows.sort_by(|left, right| {
-            let left = &left[column];
-            let right = &right[column];
-            match (left, right) {
-                (CellValue::Null, CellValue::Null) => Ordering::Equal,
-                (CellValue::Null, _) => Ordering::Greater,
-                (_, CellValue::Null) => Ordering::Less,
-                _ => {
-                    let order = left.compare(right);
-                    if direction == SortDirection::Descending {
-                        order.reverse()
-                    } else {
-                        order
-                    }
-                }
-            }
-        });
+        self.sort = Some((column, direction));
+        self.rebuild_view();
         Ok(())
     }
 
-    fn page(&self, range: Range<usize>) -> &[Vec<CellValue>] {
-        &self.rows[range]
+    /// Filter loaded rows by a case-insensitive substring found in any cell.
+    /// This only filters rows present in the model; it does not query source files.
+    pub fn filter_contains(&mut self, query: &str) -> Result<(), TableError> {
+        if query.chars().count() > 256 || query.chars().any(char::is_control) {
+            return Err(TableError::InvalidFilter);
+        }
+        self.filter = query.to_owned();
+        self.rebuild_view();
+        Ok(())
+    }
+
+    fn rebuild_view(&mut self) {
+        let needle = self.filter.to_lowercase();
+        self.visible_rows = (0..self.rows.len())
+            .filter(|index| {
+                needle.is_empty()
+                    || self.rows[*index]
+                        .iter()
+                        .any(|value| value.matches_lowercase(&needle))
+            })
+            .collect();
+        if let Some((column, direction)) = self.sort {
+            let rows = &self.rows;
+            self.visible_rows.sort_by(|left_index, right_index| {
+                let left = &rows[*left_index][column];
+                let right = &rows[*right_index][column];
+                match (left, right) {
+                    (CellValue::Null, CellValue::Null) => Ordering::Equal,
+                    (CellValue::Null, _) => Ordering::Greater,
+                    (_, CellValue::Null) => Ordering::Less,
+                    _ => {
+                        let order = left.compare(right);
+                        if direction == SortDirection::Descending {
+                            order.reverse()
+                        } else {
+                            order
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    fn page(&self, range: Range<usize>) -> impl Iterator<Item = (usize, &[CellValue])> {
+        range.map(|visible_index| {
+            let source_index = self.visible_rows[visible_index];
+            (visible_index, self.rows[source_index].as_slice())
+        })
     }
 }
 
@@ -182,6 +235,7 @@ pub enum TableError {
     MixedColumnTypes(usize),
     NonFiniteFloat,
     ColumnOutOfRange,
+    InvalidFilter,
 }
 
 impl std::fmt::Display for TableError {
@@ -201,6 +255,10 @@ impl std::fmt::Display for TableError {
             ),
             Self::NonFiniteFloat => write!(formatter, "Table floating-point cells must be finite"),
             Self::ColumnOutOfRange => write!(formatter, "Sort column is outside the table"),
+            Self::InvalidFilter => write!(
+                formatter,
+                "Table filter must contain at most 256 printable characters"
+            ),
         }
     }
 }
@@ -346,7 +404,7 @@ pub fn paginated_table<'a, Message: Clone + 'a>(
         );
     }
     let mut lines = column![header].spacing(1);
-    for (absolute_row, values) in range.clone().zip(table.page(range.clone())) {
+    for (absolute_row, values) in table.page(range.clone()) {
         let row_number = absolute_row + 1;
         let row_label = if state.selected_row() == Some(absolute_row) {
             format!("Row {row_number}, selected")
@@ -442,11 +500,42 @@ mod tests {
         )
         .unwrap();
         table.sort_by(0, SortDirection::Ascending).unwrap();
-        assert_eq!(table.rows[0][1], CellValue::Text("second".into()));
-        assert_eq!(table.rows[2][1], CellValue::Text("missing".into()));
+        assert_eq!(
+            table.value_at(0, 1),
+            Some(&CellValue::Text("second".into()))
+        );
+        assert_eq!(
+            table.value_at(2, 1),
+            Some(&CellValue::Text("missing".into()))
+        );
         table.sort_by(0, SortDirection::Descending).unwrap();
-        assert_eq!(table.rows[0][1], CellValue::Text("first".into()));
-        assert_eq!(table.rows[2][1], CellValue::Text("missing".into()));
+        assert_eq!(table.value_at(0, 1), Some(&CellValue::Text("first".into())));
+        assert_eq!(
+            table.value_at(2, 1),
+            Some(&CellValue::Text("missing".into()))
+        );
+    }
+
+    #[test]
+    fn substring_filter_is_bounded_case_insensitive_and_composes_with_sort() {
+        let mut table = TableModel::new(
+            vec!["score".into(), "label".into()],
+            vec![
+                vec![CellValue::Integer(10), CellValue::Text("Control".into())],
+                vec![CellValue::Integer(2), CellValue::Text("treatment".into())],
+                vec![CellValue::Null, CellValue::Text("control repeat".into())],
+            ],
+        )
+        .unwrap();
+        table.sort_by(0, SortDirection::Ascending).unwrap();
+        table.filter_contains("CONTROL").unwrap();
+        assert_eq!(table.row_count(), 2);
+        assert_eq!(table.value_at(0, 0), Some(&CellValue::Integer(10)));
+        assert_eq!(table.value_at(1, 0), Some(&CellValue::Null));
+        table.filter_contains("").unwrap();
+        assert_eq!(table.row_count(), 3);
+        assert_eq!(table.value_at(0, 0), Some(&CellValue::Integer(2)));
+        assert!(table.filter_contains(&"x".repeat(257)).is_err());
     }
 
     #[test]
