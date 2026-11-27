@@ -142,6 +142,7 @@ struct State {
     job_project: Option<u64>,
     status: String,
     panes: pane_grid::State<WorkspacePane>,
+    workspace_split: pane_grid::Split,
     active_menu: Option<CommandMenu>,
 }
 
@@ -289,6 +290,20 @@ impl State {
         self.active_project = self.projects[next].id;
     }
 
+    fn resize_controls(&mut self, delta: i8) {
+        let current = i16::from(self.preferences.panel_ratio);
+        let next = (current + i16::from(delta)).clamp(20, 70) as u8;
+        if next == self.preferences.panel_ratio {
+            self.status = format!("Controls pane is at its {next}% limit");
+            return;
+        }
+        self.preferences.panel_ratio = next;
+        self.panes
+            .resize(self.workspace_split, f32::from(next) / 100.0);
+        self.save_preferences();
+        self.status = format!("Controls pane width: {next}%");
+    }
+
     fn update(&mut self, msg: Message) -> Task<Message> {
         match msg {
             Message::NewProject => self.add_project(),
@@ -388,6 +403,8 @@ impl State {
                     Some(ShortcutCommand::Cancel) => {
                         return self.update(Message::Command(WorkbenchCommand::Cancel));
                     }
+                    Some(ShortcutCommand::NarrowControls) => self.resize_controls(-5),
+                    Some(ShortcutCommand::WidenControls) => self.resize_controls(5),
                     None => {}
                 }
             }
@@ -678,6 +695,30 @@ impl State {
                                     |label| Message::ShortcutKey(ShortcutCommand::Cancel, label)
                                 )
                                 .style(picker_style),
+                                text("Narrow controls shortcut"),
+                                pick_list(
+                                    shortcut_keys.clone(),
+                                    self.preferences
+                                        .shortcuts
+                                        .binding(ShortcutCommand::NarrowControls)
+                                        .map(|binding| binding.key.label()),
+                                    |label| {
+                                        Message::ShortcutKey(ShortcutCommand::NarrowControls, label)
+                                    }
+                                )
+                                .style(picker_style),
+                                text("Widen controls shortcut"),
+                                pick_list(
+                                    shortcut_keys.clone(),
+                                    self.preferences
+                                        .shortcuts
+                                        .binding(ShortcutCommand::WidenControls)
+                                        .map(|binding| binding.key.label()),
+                                    |label| {
+                                        Message::ShortcutKey(ShortcutCommand::WidenControls, label)
+                                    }
+                                )
+                                .style(picker_style),
                             ]
                             .spacing(8)
                             .align_y(iced::Alignment::Center)
@@ -766,7 +807,7 @@ fn normalized_panel_ratio(candidate: f32, fallback_percent: u8) -> f32 {
 }
 
 fn shortcut_key_labels() -> Vec<String> {
-    ["Enter", "Escape"]
+    ["Enter", "Escape", "[", "]"]
         .into_iter()
         .map(str::to_owned)
         .chain(('A'..='Z').map(|character| character.to_string()))
@@ -864,6 +905,7 @@ fn run_workbench(
                     job_project: None,
                     status: "Ready".into(),
                     panes,
+                    workspace_split: split,
                     active_menu: None,
                 },
                 Task::none(),
@@ -881,7 +923,14 @@ mod tests {
             label: "Test",
             hint: "Test operation",
         }];
-        let (panes, _) = pane_grid::State::new(WorkspacePane::Controls);
+        let (mut panes, controls) = pane_grid::State::new(WorkspacePane::Controls);
+        let (_, workspace_split) = panes
+            .split(
+                pane_grid::Axis::Vertical,
+                controls,
+                WorkspacePane::Workspace,
+            )
+            .expect("test workspace split is valid");
         State {
             ops,
             handler: |_request, _job| Ok(Outcome::default()),
@@ -895,6 +944,7 @@ mod tests {
             job_project: None,
             status: "Ready".into(),
             panes,
+            workspace_split,
             active_menu: None,
         }
     }
@@ -964,6 +1014,21 @@ mod tests {
         assert_eq!(normalized_panel_ratio(0.1, 34), 0.2);
         assert_eq!(normalized_panel_ratio(0.9, 34), 0.7);
         assert_eq!(normalized_panel_ratio(f32::NAN, 44), 0.44);
+    }
+
+    #[test]
+    fn keyboard_panel_resize_updates_the_persistent_ratio_with_bounds() {
+        let mut state = state_for_test();
+        state.resize_controls(-5);
+        assert_eq!(state.preferences.panel_ratio, 29);
+        state.preferences.panel_ratio = 20;
+        state.resize_controls(-5);
+        assert_eq!(state.preferences.panel_ratio, 20);
+        state.preferences.panel_ratio = 70;
+        state.resize_controls(5);
+        assert_eq!(state.preferences.panel_ratio, 70);
+        state.resize_controls(5);
+        assert_eq!(state.preferences.panel_ratio, 70);
     }
 
     #[test]
