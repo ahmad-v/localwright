@@ -27,7 +27,7 @@
     },
     {
       "operation": "figures",
-      "description": "Labeled SVG line/scatter plus a three-map scientific palette registry (sequential batlow, diverging vik, qualitative batlowS)",
+      "description": "Labeled multi-series SVG line/scatter with legends and marker/dash styles; three-map palette registry (sequential batlow, diverging vik, qualitative batlowS)",
       "status": "implemented-unverified",
       "targets": [],
       "fixture_status": "not run"
