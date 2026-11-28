@@ -37,6 +37,8 @@ fn main() -> localwright_core::Result<()> {
 
 Render and export multiple labeled series with shared axes and a legend. Line figures include marker and dash examples in the legend; scatter figures show each series marker.
 
+For white-background categorical figures, `ScientificPalette::series_style_on_white` selects source palette samples with at least 3:1 contrast for non-text marks, then adds the requested marker and dash channels. It rejects non-qualitative palettes and indices beyond the available contrasting samples. This helps plotted marks remain visible; it does not establish full WCAG conformance or replace labels and visual review.
+
 For black-only print, select redundant marker and line encodings instead of relying on hue. The built-in helpers return distinct styles for up to ten line series (five markers across solid and dashed strokes) and five scatter series. They reject larger indices instead of silently repeating a style. This is an encoding aid, not a guarantee that every dense figure is readable; use labels and inspect the final print size.
 
 ```rust,no_run
@@ -117,6 +119,27 @@ fn main() -> localwright_core::Result<()> {
     )
 }
 ```
+
+Enable the opt-in `figure-pdf` feature to export the same multi-series geometry as vector PDF at an explicit physical page size. Dimensions are bounded to 200–4000 CSS pixels per side at 96 DPI. PDF labels use a font installed on the host and are converted to vector outlines, so no font file is embedded; font substitution can change text metrics between systems. The generated line and scatter figures contain vector paths and text outlines (no raster images). `svg2pdf` is licensed MIT OR Apache-2.0; see the dependency lockfile and upstream notices. The feature does not add a GUI or PDF reader.
+
+```rust,ignore
+use localwright_core::figure::{
+    export_line_series_pdf, FigureDimensions, FigureLabels, FigureSeries, SeriesStyle,
+};
+
+fn main() -> localwright_core::Result<()> {
+    let points = [(0.0, 1.0), (1.0, 2.0)];
+    let series = [FigureSeries::new("Control", &points, SeriesStyle::MONOCHROME)];
+    export_line_series_pdf(
+        std::path::Path::new("figure.pdf"),
+        &series,
+        FigureDimensions::new(180.0, 120.0),
+        FigureLabels { title: "Response", x_axis: "Dose", y_axis: "Value" },
+    )
+}
+```
+
+Run the standalone example with `cargo run -p localwright-core --features figure-pdf --example scientific_pdf -- figure.pdf`.
 
 Share the same `Handler` between a CLI and the optional `localwright-ui` workbench. Check `Job::check` during a long operation so cancellation can take effect. The file helpers are for trusted directories. They do not isolate a process or eliminate pathname races.
 

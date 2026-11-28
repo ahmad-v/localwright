@@ -27,7 +27,7 @@
     },
     {
       "operation": "figures",
-      "description": "Labeled multi-series SVG line/scatter with legends and marker/dash styles; three-map palette registry (sequential batlow, diverging vik, qualitative batlowS)",
+      "description": "Labeled multi-series SVG line/scatter and opt-in vector PDF figures with physical dimensions; marker/dash styles; white-background qualitative samples filtered to 3:1 non-text contrast; three-map palette registry (sequential batlow, diverging vik, qualitative batlowS)",
       "status": "implemented-unverified",
       "targets": [],
       "fixture_status": "not run"

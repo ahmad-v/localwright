@@ -93,6 +93,53 @@ impl ScientificPalette {
             dashed,
         })
     }
+
+    /// Choose the `index`th qualitative palette sample with at least 3:1
+    /// contrast against a white figure background, then add marker and dash
+    /// channels. This threshold is for non-text plot marks, not small text.
+    pub fn series_style_on_white(
+        &self,
+        index: usize,
+        marker: crate::figure::Marker,
+        dashed: bool,
+    ) -> Result<SeriesStyle> {
+        if self.kind != PaletteKind::Qualitative {
+            return Err(Error::input(
+                "White-background series styles require a qualitative palette",
+            ));
+        }
+        let color = self
+            .colors
+            .iter()
+            .copied()
+            .filter(|color| contrast_on_white(color).is_some_and(|ratio| ratio >= 3.0))
+            .nth(index)
+            .ok_or_else(|| Error::input("No qualifying palette sample for this series index"))?;
+        Ok(SeriesStyle {
+            color,
+            marker,
+            dashed,
+        })
+    }
+}
+
+fn contrast_on_white(color: &str) -> Option<f64> {
+    let bytes = color.as_bytes();
+    if bytes.len() != 7 || bytes[0] != b'#' {
+        return None;
+    }
+    let mut channels = [0.0; 3];
+    for (channel, pair) in channels.iter_mut().zip(bytes[1..].chunks_exact(2)) {
+        let component =
+            u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()? as f64 / 255.0;
+        *channel = if component <= 0.04045 {
+            component / 12.92
+        } else {
+            ((component + 0.055) / 1.055).powf(2.4)
+        };
+    }
+    let luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    Some(1.05 / (luminance + 0.05))
 }
 
 /// All palettes bundled in this version of Localwright.
@@ -170,5 +217,32 @@ mod tests {
         assert!(colors.sample(0.5).is_err());
         assert!(palette("vik").unwrap().sample(f64::NAN).is_err());
         assert!(palette("vik").unwrap().sample(1.1).is_err());
+    }
+
+    #[test]
+    fn white_background_series_styles_preserve_source_colors_with_graphic_contrast() {
+        let categorical = palette("batlowS").unwrap();
+        let styles = (0..12)
+            .map(|index| categorical.series_style_on_white(index, Marker::Circle, index % 2 == 1))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        assert!(styles
+            .iter()
+            .all(|style| { contrast_on_white(style.color).is_some_and(|ratio| ratio >= 3.0) }));
+        assert_eq!(
+            styles
+                .iter()
+                .map(|style| style.color)
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            styles.len()
+        );
+        assert!(palette("batlow")
+            .unwrap()
+            .series_style_on_white(0, Marker::Circle, false)
+            .is_err());
+        assert!(categorical
+            .series_style_on_white(62, Marker::Circle, false)
+            .is_err());
     }
 }
