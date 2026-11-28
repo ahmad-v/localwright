@@ -68,10 +68,10 @@
     },
     {
       "operation": "workspace-sessions",
-      "description": "Explicit versioned session save/restore for up to 32 project tabs, operation context, paths, draft text and pane/toolbar layout; restore appends tabs without executing operations; result payloads and loaded tables are excluded.",
+      "description": "Explicit versioned session save and restore for up to 32 project tabs, operation context, paths, draft text and pane/toolbar layout; restore appends tabs without executing operations; result payloads and loaded tables are excluded.",
       "status": "implemented-unverified",
       "targets": [],
-      "fixture_status": "Source and persistence/workbench tests added; hosted Quick and native verification pending"
+      "fixture_status": "Persistence and workbench tests passed; exact source head passed hosted Quick, Integration and five-target native checks; native device interaction remains pending"
     },
     {
       "operation": "typed-table-workspace",
