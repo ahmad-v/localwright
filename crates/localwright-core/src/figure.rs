@@ -2,6 +2,46 @@
 use crate::{write_bytes, Error, Result};
 use std::{fmt::Write, path::Path};
 
+/// Physical dimensions for PDF export. SVG output uses CSS pixels at 96 DPI,
+/// so the PDF page preserves the same figure layout at the requested size.
+#[cfg(feature = "figure-pdf")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FigureDimensions {
+    pub width_mm: f64,
+    pub height_mm: f64,
+}
+
+#[cfg(feature = "figure-pdf")]
+impl FigureDimensions {
+    pub const fn new(width_mm: f64, height_mm: f64) -> Self {
+        Self {
+            width_mm,
+            height_mm,
+        }
+    }
+
+    fn css_pixels(self) -> Result<(u32, u32)> {
+        fn dimension(mm: f64) -> Option<u32> {
+            if !mm.is_finite() || mm <= 0.0 {
+                return None;
+            }
+            let pixels = (mm * 96.0 / 25.4).round();
+            if !(200.0..=4000.0).contains(&pixels) {
+                return None;
+            }
+            Some(pixels as u32)
+        }
+
+        let width = dimension(self.width_mm).ok_or_else(|| {
+            Error::input("Figure width must map to 200..=4000 CSS pixels at 96 DPI")
+        })?;
+        let height = dimension(self.height_mm).ok_or_else(|| {
+            Error::input("Figure height must map to 200..=4000 CSS pixels at 96 DPI")
+        })?;
+        Ok((width, height))
+    }
+}
+
 /// Marker geometry for monochrome-safe and color-vision-accessible figures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Marker {
@@ -73,6 +113,56 @@ impl SeriesStyle {
         marker: Marker::Circle,
         dashed: false,
     };
+
+    /// Select a black-only line style with a distinct marker and dash pattern.
+    ///
+    /// The first five series use solid lines and the next five use dashed
+    /// lines. Each group cycles through five distinct markers, providing ten
+    /// distinguishable combinations before the style set repeats. This is a
+    /// useful starting point for print-safe figures; labels and legends remain
+    /// necessary for interpretation.
+    pub fn monochrome_line(series_index: usize) -> Result<Self> {
+        const MARKERS: [Marker; 5] = [
+            Marker::Circle,
+            Marker::Square,
+            Marker::Triangle,
+            Marker::Diamond,
+            Marker::Cross,
+        ];
+        if series_index >= MARKERS.len() * 2 {
+            return Err(Error::input(
+                "Monochrome line styles support at most ten distinct series",
+            ));
+        }
+        Ok(Self {
+            color: "#000000",
+            marker: MARKERS[series_index % MARKERS.len()],
+            dashed: series_index >= MARKERS.len(),
+        })
+    }
+
+    /// Select a black-only scatter style with a distinct point marker.
+    ///
+    /// Scatter series have no connecting stroke, so dash patterns cannot
+    /// distinguish them. This method provides five marker styles and rejects
+    /// larger indices instead of silently assigning a duplicate.
+    pub fn monochrome_scatter(series_index: usize) -> Result<Self> {
+        const MARKERS: [Marker; 5] = [
+            Marker::Circle,
+            Marker::Square,
+            Marker::Triangle,
+            Marker::Diamond,
+            Marker::Cross,
+        ];
+        let marker = MARKERS.get(series_index).copied().ok_or_else(|| {
+            Error::input("Monochrome scatter styles support at most five distinct series")
+        })?;
+        Ok(Self {
+            color: "#000000",
+            marker,
+            dashed: false,
+        })
+    }
 
     fn validate(self) -> Result<Self> {
         let bytes = self.color.as_bytes();
@@ -253,6 +343,150 @@ pub fn export_scatter_series_svg_labeled(
     )
 }
 
+/// Render a labeled scatter figure to a vector PDF buffer at physical page
+/// dimensions. Its SVG input is produced by the same renderer as SVG export.
+#[cfg(feature = "figure-pdf")]
+pub fn scatter_pdf(
+    points: &[(f64, f64)],
+    dimensions: FigureDimensions,
+    style: SeriesStyle,
+    labels: FigureLabels<'_>,
+) -> Result<Vec<u8>> {
+    let (width, height) = dimensions.css_pixels()?;
+    let svg = scatter_svg_labeled(points, width, height, style, labels)?;
+    svg_to_pdf(&svg)
+}
+
+/// Render a labeled line figure to a vector PDF buffer at physical page
+/// dimensions. Its SVG input is produced by the same renderer as SVG export.
+#[cfg(feature = "figure-pdf")]
+pub fn line_pdf(
+    points: &[(f64, f64)],
+    dimensions: FigureDimensions,
+    style: SeriesStyle,
+    labels: FigureLabels<'_>,
+) -> Result<Vec<u8>> {
+    let (width, height) = dimensions.css_pixels()?;
+    let svg = line_svg_labeled(points, width, height, style, labels)?;
+    svg_to_pdf(&svg)
+}
+
+/// Render a labeled multi-series line figure to a vector PDF buffer.
+#[cfg(feature = "figure-pdf")]
+pub fn line_series_pdf(
+    series: &[FigureSeries<'_>],
+    dimensions: FigureDimensions,
+    labels: FigureLabels<'_>,
+) -> Result<Vec<u8>> {
+    let (width, height) = dimensions.css_pixels()?;
+    let svg = line_series_svg_labeled(series, width, height, labels)?;
+    svg_to_pdf(&svg)
+}
+
+/// Render a labeled multi-series scatter figure to a vector PDF buffer.
+#[cfg(feature = "figure-pdf")]
+pub fn scatter_series_pdf(
+    series: &[FigureSeries<'_>],
+    dimensions: FigureDimensions,
+    labels: FigureLabels<'_>,
+) -> Result<Vec<u8>> {
+    let (width, height) = dimensions.css_pixels()?;
+    let svg = scatter_series_svg_labeled(series, width, height, labels)?;
+    svg_to_pdf(&svg)
+}
+
+/// Export a labeled multi-series line figure as a new vector PDF file.
+#[cfg(feature = "figure-pdf")]
+pub fn export_line_series_pdf(
+    path: &Path,
+    series: &[FigureSeries<'_>],
+    dimensions: FigureDimensions,
+    labels: FigureLabels<'_>,
+) -> Result<()> {
+    write_bytes(path, &line_series_pdf(series, dimensions, labels)?)
+}
+
+/// Export a labeled multi-series scatter figure as a new vector PDF file.
+#[cfg(feature = "figure-pdf")]
+pub fn export_scatter_series_pdf(
+    path: &Path,
+    series: &[FigureSeries<'_>],
+    dimensions: FigureDimensions,
+    labels: FigureLabels<'_>,
+) -> Result<()> {
+    write_bytes(path, &scatter_series_pdf(series, dimensions, labels)?)
+}
+
+#[cfg(feature = "figure-pdf")]
+fn svg_to_pdf(svg: &str) -> Result<Vec<u8>> {
+    let mut options = svg2pdf::usvg::Options::default();
+    options.fontdb_mut().load_system_fonts();
+    const FONT_PREFERENCE: &[&str] = &[
+        "Arial",
+        "Liberation Sans",
+        "DejaVu Sans",
+        "Noto Sans",
+        "Segoe UI",
+        "Helvetica",
+    ];
+    let faces = options.fontdb.faces().collect::<Vec<_>>();
+    let font_family = FONT_PREFERENCE
+        .iter()
+        .find_map(|preferred| {
+            faces.iter().find_map(|face| {
+                face.families
+                    .iter()
+                    .find(|(family, _)| family.eq_ignore_ascii_case(preferred))
+                    .map(|(family, _)| family.as_str())
+            })
+        })
+        .or_else(|| {
+            faces
+                .iter()
+                .find_map(|face| face.families.first().map(|(family, _)| family.as_str()))
+        })
+        .filter(|family| {
+            !family.is_empty()
+                && family.chars().count() <= 128
+                && !family.chars().any(char::is_control)
+        })
+        .ok_or_else(|| Error::engine("PDF figure export requires an installed system font"))?;
+    let escaped_family = escape_xml_attribute(font_family);
+    let svg = svg.replace(
+        "font-family=\"sans-serif\"",
+        &format!("font-family=\"{escaped_family}\""),
+    );
+    let tree = svg2pdf::usvg::Tree::from_str(&svg, &options).map_err(|error| {
+        Error::engine(format!(
+            "Could not prepare the scientific figure for PDF export: {error}"
+        ))
+    })?;
+    // Convert labels to vector outlines. The PDF remains font-independent and
+    // does not embed host font files; labels may reflect the host's font metrics.
+    svg2pdf::to_pdf(
+        &tree,
+        svg2pdf::ConversionOptions {
+            embed_text: false,
+            ..svg2pdf::ConversionOptions::default()
+        },
+        svg2pdf::PageOptions { dpi: 96.0 },
+    )
+    .map_err(|error| {
+        Error::engine(format!(
+            "Could not convert the scientific figure to PDF: {error}"
+        ))
+    })
+}
+
+#[cfg(feature = "figure-pdf")]
+fn escape_xml_attribute(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 enum PlotKind {
     Scatter,
     Line,
@@ -350,7 +584,7 @@ fn multi_series_svg(
     );
     let _ = write!(
         svg,
-        r#"<g fill="black" font-family="sans-serif"><text x="{}" y="22" text-anchor="middle" font-size="14" textLength="{plot_width}" lengthAdjust="spacingAndGlyphs">{title}</text>"#,
+        r#"<g fill="black" font-family="sans-serif"><text x="{}" y="22" text-anchor="middle" font-size="14">{title}</text>"#,
         (MULTI_LEFT + plot_right) / 2.0
     );
 
@@ -424,7 +658,7 @@ fn multi_series_svg(
     }
     let _ = write!(
         svg,
-        r#"<text x="{}" y="{}" text-anchor="middle" font-size="12" textLength="{plot_width}" lengthAdjust="spacingAndGlyphs">{x_axis}</text><text x="16" y="{}" transform="rotate(-90 16 {})" text-anchor="middle" font-size="12" textLength="{plot_height}" lengthAdjust="spacingAndGlyphs">{y_axis}</text></g>"#,
+        r#"<text x="{}" y="{}" text-anchor="middle" font-size="12">{x_axis}</text><text x="16" y="{}" transform="rotate(-90 16 {})" text-anchor="middle" font-size="12">{y_axis}</text></g>"#,
         (MULTI_LEFT + plot_right) / 2.0,
         h - 10.0,
         (MULTI_TOP + plot_bottom) / 2.0,
@@ -473,7 +707,7 @@ fn multi_series_svg(
         let label = escape_xml(entry.label);
         let _ = write!(
             svg,
-            r#"<text x="{}" y="{y}" textLength="160" lengthAdjust="spacingAndGlyphs">{label}</text>"#,
+            r#"<text x="{}" y="{y}">{label}</text>"#,
             legend_x + 24.0
         );
     }
@@ -590,7 +824,7 @@ fn plot_svg(
     if labels.is_some() {
         let _ = write!(
             s,
-            r#"<text x="{}" y="22" text-anchor="middle" fill="black" font-size="14" font-family="sans-serif" textLength="{plot_width}" lengthAdjust="spacingAndGlyphs">{title}</text>"#,
+            r#"<text x="{}" y="22" text-anchor="middle" fill="black" font-size="14" font-family="sans-serif">{title}</text>"#,
             (left + w - right) / 2.0
         );
     }
@@ -707,7 +941,7 @@ fn plot_svg(
         let y_axis = escape_xml(labels.y_axis);
         let _ = write!(
             s,
-            r#"<text x="{}" y="{}" text-anchor="middle" fill="black" font-size="12" font-family="sans-serif" textLength="{plot_width}" lengthAdjust="spacingAndGlyphs">{x_axis}</text><text x="16" y="{}" transform="rotate(-90 16 {})" text-anchor="middle" fill="black" font-size="12" font-family="sans-serif" textLength="{plot_height}" lengthAdjust="spacingAndGlyphs">{y_axis}</text>"#,
+            r#"<text x="{}" y="{}" text-anchor="middle" fill="black" font-size="12" font-family="sans-serif">{x_axis}</text><text x="16" y="{}" transform="rotate(-90 16 {})" text-anchor="middle" fill="black" font-size="12" font-family="sans-serif">{y_axis}</text>"#,
             (left + w - right) / 2.0,
             h - 10.0,
             (top + plot_bottom) / 2.0,
@@ -770,6 +1004,72 @@ pub fn export_line_svg_styled(
 mod tests {
     use super::*;
     use crate::palettes::palette;
+
+    #[test]
+    fn monochrome_styles_are_distinct_and_bounded_for_plot_kind() {
+        let lines = (0..10)
+            .map(SeriesStyle::monochrome_line)
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        assert!(lines.iter().all(|style| style.color == "#000000"));
+        for left in 0..lines.len() {
+            for right in left + 1..lines.len() {
+                assert_ne!(lines[left], lines[right]);
+            }
+        }
+        assert!(SeriesStyle::monochrome_line(10).is_err());
+
+        let scatter = (0..5)
+            .map(SeriesStyle::monochrome_scatter)
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        assert!(scatter.iter().all(|style| style.color == "#000000"));
+        assert!(scatter.iter().all(|style| !style.dashed));
+        assert!(SeriesStyle::monochrome_scatter(5).is_err());
+
+        let labels = [
+            "Series 1",
+            "Series 2",
+            "Series 3",
+            "Series 4",
+            "Series 5",
+            "Series 6",
+            "Series 7",
+            "Series 8",
+            "Series 9",
+            "Series 10",
+        ];
+        let points = [(0.0, 0.0), (1.0, 1.0)];
+        let series = labels
+            .iter()
+            .enumerate()
+            .map(|(index, label)| {
+                Ok(FigureSeries::new(
+                    label,
+                    &points,
+                    SeriesStyle::monochrome_line(index)?,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        let chart = line_series_svg_labeled(
+            &series,
+            1000,
+            900,
+            FigureLabels {
+                title: "Print test",
+                x_axis: "X",
+                y_axis: "Y",
+            },
+        )
+        .unwrap();
+        assert_eq!(chart.matches("<polyline ").count(), 10);
+        assert_eq!(chart.matches("stroke-dasharray=\"7 4\"").count(), 10);
+        assert!(chart.contains("stroke=\"#000000\""));
+        assert!(chart.contains("<rect "));
+        assert!(chart.contains("aria-label=\"Legend\""));
+    }
+
     #[test]
     fn line_chart_preserves_order_and_exports_once() {
         let points = [(3.0, 0.0), (1.0, 5.0), (2.0, 2.5)];
@@ -808,6 +1108,7 @@ mod tests {
         assert!(scatter.contains("fill=\"#336699\""));
         let line = line_svg_styled(&[(0., 0.), (1., 2.)], 640, 480, style).unwrap();
         assert!(line.contains("stroke-dasharray=\"7 4\""));
+        assert!(!line.contains("textLength="));
         assert!(line.contains("stroke=\"#336699\""));
         assert!(scatter_svg_styled(
             &[(0., 0.), (1., 2.)],
@@ -975,5 +1276,37 @@ mod tests {
         assert!(line_series_svg_labeled(&bad_label, 800, 600, fixture_labels()).is_err());
         let duplicate_label = [series[0], series[0]];
         assert!(line_series_svg_labeled(&duplicate_label, 800, 600, fixture_labels()).is_err());
+    }
+
+    #[cfg(feature = "figure-pdf")]
+    #[test]
+    fn pdf_export_is_vector_sized_and_does_not_overwrite() {
+        let series = fixture_series();
+        let dimensions = FigureDimensions::new(210.0, 148.0);
+        let pdf = line_series_pdf(&series, dimensions, fixture_labels()).unwrap();
+        assert!(pdf.starts_with(b"%PDF-"));
+        let content = String::from_utf8_lossy(&pdf);
+        assert!(content.contains("/MediaBox"));
+        assert!(!content.contains("/Subtype /Image"));
+
+        let directory = tempfile::tempdir().unwrap();
+        let output = directory.path().join("figure.pdf");
+        export_line_series_pdf(&output, &series, dimensions, fixture_labels()).unwrap();
+        assert_eq!(std::fs::read(&output).unwrap(), pdf);
+        assert!(export_scatter_series_pdf(&output, &series, dimensions, fixture_labels()).is_err());
+        assert_eq!(std::fs::read(&output).unwrap(), pdf);
+    }
+
+    #[cfg(feature = "figure-pdf")]
+    #[test]
+    fn pdf_export_rejects_nonfinite_and_unbounded_physical_dimensions() {
+        for dimensions in [
+            FigureDimensions::new(f64::NAN, 100.0),
+            FigureDimensions::new(100.0, f64::INFINITY),
+            FigureDimensions::new(1.0, 100.0),
+            FigureDimensions::new(100.0, 2000.0),
+        ] {
+            assert!(dimensions.css_pixels().is_err());
+        }
     }
 }

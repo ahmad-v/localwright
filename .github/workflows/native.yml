@@ -64,5 +64,5 @@ jobs:
           sudo apt-get install -y libxkbcommon-dev libwayland-dev
       - name: Compile and run native tests
         run: |
-          cargo check --locked --workspace --all-targets
-          cargo test --locked --workspace
+          cargo check --locked --workspace --all-targets --features localwright-core/figure-pdf
+          cargo test --locked --workspace --features localwright-core/figure-pdf

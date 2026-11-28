@@ -27,10 +27,10 @@
     },
     {
       "operation": "figures",
-      "description": "Labeled multi-series SVG line/scatter with legends and marker/dash styles; three-map palette registry (sequential batlow, diverging vik, qualitative batlowS)",
+      "description": "Labeled multi-series SVG line/scatter and opt-in vector PDF figures with physical dimensions; marker/dash styles; white-background qualitative samples filtered to 3:1 non-text contrast; eight-map palette registry: Crameri batlow/vik/batlowS and Matplotlib viridis/cividis/plasma/inferno/magma, with exact indexed stops, continuous sRGB sampling, and pinned source/license provenance",
       "status": "implemented-unverified",
       "targets": [],
-      "fixture_status": "not run"
+      "fixture_status": "Palette table hashes, source pin, and license hash checks passed; Rust build/tests pending"
     },
     {
       "operation": "external-consumer",
@@ -65,6 +65,13 @@
         "x86_64-unknown-linux-gnu"
       ],
       "fixture_status": "17 unit tests and workspace compile passed; native-device interaction pending"
+    },
+    {
+      "operation": "workspace-sessions",
+      "description": "Explicit versioned session save and restore for up to 32 project tabs, operation context, paths, draft text and pane/toolbar layout; restore appends tabs without executing operations; result payloads and loaded tables are excluded.",
+      "status": "implemented-unverified",
+      "targets": [],
+      "fixture_status": "Persistence and workbench tests passed; exact source head passed hosted Quick, Integration and five-target native checks; native device interaction remains pending"
     },
     {
       "operation": "typed-table-workspace",

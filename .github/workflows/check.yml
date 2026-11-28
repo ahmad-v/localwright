@@ -83,8 +83,11 @@ jobs:
         if: steps.scope.outputs.run_rust == 'true'
         run: |
           cargo check --locked --workspace --all-targets
+          cargo check --locked -p localwright-core --features figure-pdf --all-targets
           cargo test --locked --workspace
+          cargo test --locked -p localwright-core --features figure-pdf
           cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo clippy --locked -p localwright-core --features figure-pdf --all-targets -- -D warnings
       - name: Validate capability registry and package manifests
         run: |
           python3 -m json.tool docs/capabilities.json > /dev/null

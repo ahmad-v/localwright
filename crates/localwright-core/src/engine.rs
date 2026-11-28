@@ -82,6 +82,13 @@ pub struct EngineInvocation {
     pub environment: BTreeMap<String, String>,
 }
 
+/// Per-launch operating-system options for a verified private engine.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EngineRunOptions {
+    /// Avoid opening a console window for this child on Windows. Ignored elsewhere.
+    pub hide_console: bool,
+}
+
 /// Bounded output and process exit status returned by a private engine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EngineOutput {
@@ -114,6 +121,16 @@ impl ResolvedEngine {
     /// Run this engine with structured arguments, a private temporary directory, bounded pipes,
     /// environment allowlisting, a wall-clock timeout and process-tree cancellation.
     pub fn run(&self, invocation: EngineInvocation, job: &Job) -> Result<EngineOutput> {
+        self.run_with_options(invocation, EngineRunOptions::default(), job)
+    }
+
+    /// Run with explicit platform process options while retaining the standard runtime bounds.
+    pub fn run_with_options(
+        &self,
+        invocation: EngineInvocation,
+        options: EngineRunOptions,
+        job: &Job,
+    ) -> Result<EngineOutput> {
         validate_invocation(&self.spec, &invocation)?;
         verify_executable(&self.spec, &self.executable)?;
 
@@ -132,6 +149,14 @@ impl ResolvedEngine {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        #[cfg(windows)]
+        if options.hide_console {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        #[cfg(not(windows))]
+        let _ = options.hide_console;
         #[cfg(windows)]
         if let Some(system_root) = std::env::var_os("SystemRoot") {
             command.env("SystemRoot", system_root);
@@ -352,6 +377,17 @@ impl EngineRuntime {
 
     /// Launch an available engine by registered ID.
     pub fn run(&self, id: &str, invocation: EngineInvocation, job: &Job) -> Result<EngineOutput> {
+        self.run_with_options(id, invocation, EngineRunOptions::default(), job)
+    }
+
+    /// Launch an available engine with explicit platform process options.
+    pub fn run_with_options(
+        &self,
+        id: &str,
+        invocation: EngineInvocation,
+        options: EngineRunOptions,
+        job: &Job,
+    ) -> Result<EngineOutput> {
         let engine = self.available.get(id).ok_or_else(|| {
             Error::engine(
                 self.unavailable
@@ -360,7 +396,7 @@ impl EngineRuntime {
                     .unwrap_or_else(|| format!("Engine {id:?} is not registered")),
             )
         })?;
-        engine.run(invocation, job)
+        engine.run_with_options(invocation, options, job)
     }
 
     /// Execute descriptor-supplied health-check arguments using the same bounds as normal jobs.
@@ -761,7 +797,7 @@ mod tests {
         let runtime = EngineRuntime::discover(dir.path()).unwrap();
         assert!(runtime.unavailable().is_empty());
         let result = runtime
-            .run(
+            .run_with_options(
                 "test-engine",
                 EngineInvocation {
                     args: invocation("echo").args,
@@ -770,6 +806,9 @@ mod tests {
                         ("FIXTURE_VALUE".into(), "private".into()),
                         ("LOCALWRIGHT_ENGINE_TEST_CHILD".into(), "echo".into()),
                     ]),
+                },
+                EngineRunOptions {
+                    hide_console: cfg!(windows),
                 },
                 &Job::new(),
             )

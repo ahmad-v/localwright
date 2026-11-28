@@ -73,6 +73,36 @@ impl ScientificPalette {
         Ok(self.colors[index])
     }
 
+    /// Interpolate between the bundled samples and return an 8-bit sRGB color.
+    ///
+    /// This preserves the source map's 256 published stops while allowing a
+    /// continuous position. Interpolation is component-wise in encoded sRGB;
+    /// use [`Self::color`] when an exact published sample is required.
+    pub fn sample_continuous_rgb(&self, position: f64) -> Result<[u8; 3]> {
+        if self.kind == PaletteKind::Qualitative {
+            return Err(Error::input(
+                "Use a discrete index for a qualitative palette",
+            ));
+        }
+        if !position.is_finite() || !(0.0..=1.0).contains(&position) {
+            return Err(Error::input(
+                "Palette position must be finite and in [0, 1]",
+            ));
+        }
+
+        let scaled = position * (self.colors.len() - 1) as f64;
+        let lower_index = scaled.floor() as usize;
+        let upper_index = (lower_index + 1).min(self.colors.len() - 1);
+        let fraction = scaled - lower_index as f64;
+        let lower = parse_rgb(self.colors[lower_index])?;
+        let upper = parse_rgb(self.colors[upper_index])?;
+        Ok(std::array::from_fn(|channel| {
+            (f64::from(lower[channel])
+                + (f64::from(upper[channel]) - f64::from(lower[channel])) * fraction)
+                .round() as u8
+        }))
+    }
+
     /// Build a series style from a discrete palette sample.
     ///
     /// Markers and dashes add independent visual channels for monochrome and
@@ -93,6 +123,68 @@ impl ScientificPalette {
             dashed,
         })
     }
+
+    /// Choose the `index`th qualitative palette sample with at least 3:1
+    /// contrast against a white figure background, then add marker and dash
+    /// channels. This threshold is for non-text plot marks, not small text.
+    pub fn series_style_on_white(
+        &self,
+        index: usize,
+        marker: crate::figure::Marker,
+        dashed: bool,
+    ) -> Result<SeriesStyle> {
+        if self.kind != PaletteKind::Qualitative {
+            return Err(Error::input(
+                "White-background series styles require a qualitative palette",
+            ));
+        }
+        let color = self
+            .colors
+            .iter()
+            .copied()
+            .filter(|color| contrast_on_white(color).is_some_and(|ratio| ratio >= 3.0))
+            .nth(index)
+            .ok_or_else(|| Error::input("No qualifying palette sample for this series index"))?;
+        Ok(SeriesStyle {
+            color,
+            marker,
+            dashed,
+        })
+    }
+}
+
+fn parse_rgb(color: &str) -> Result<[u8; 3]> {
+    let bytes = color.as_bytes();
+    if bytes.len() != 7 || bytes[0] != b'#' {
+        return Err(Error::input("Bundled palette contains an invalid color"));
+    }
+    let mut rgb = [0; 3];
+    for (channel, pair) in rgb.iter_mut().zip(bytes[1..].chunks_exact(2)) {
+        let text = std::str::from_utf8(pair)
+            .map_err(|_| Error::input("Bundled palette contains an invalid color"))?;
+        *channel = u8::from_str_radix(text, 16)
+            .map_err(|_| Error::input("Bundled palette contains an invalid color"))?;
+    }
+    Ok(rgb)
+}
+
+fn contrast_on_white(color: &str) -> Option<f64> {
+    let bytes = color.as_bytes();
+    if bytes.len() != 7 || bytes[0] != b'#' {
+        return None;
+    }
+    let mut channels = [0.0; 3];
+    for (channel, pair) in channels.iter_mut().zip(bytes[1..].chunks_exact(2)) {
+        let component =
+            u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()? as f64 / 255.0;
+        *channel = if component <= 0.04045 {
+            component / 12.92
+        } else {
+            ((component + 0.055) / 1.055).powf(2.4)
+        };
+    }
+    let luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    Some(1.05 / (luminance + 0.05))
 }
 
 /// All palettes bundled in this version of Localwright.
@@ -111,6 +203,31 @@ pub const SCIENTIFIC_PALETTES: &[ScientificPalette] = &[
         name: "batlowS",
         kind: PaletteKind::Qualitative,
         colors: data::BATLOW_S,
+    },
+    ScientificPalette {
+        name: "viridis",
+        kind: PaletteKind::Sequential,
+        colors: data::VIRIDIS,
+    },
+    ScientificPalette {
+        name: "cividis",
+        kind: PaletteKind::Sequential,
+        colors: data::CIVIDIS,
+    },
+    ScientificPalette {
+        name: "plasma",
+        kind: PaletteKind::Sequential,
+        colors: data::PLASMA,
+    },
+    ScientificPalette {
+        name: "inferno",
+        kind: PaletteKind::Sequential,
+        colors: data::INFERNO,
+    },
+    ScientificPalette {
+        name: "magma",
+        kind: PaletteKind::Sequential,
+        colors: data::MAGMA,
     },
 ];
 
@@ -134,9 +251,17 @@ mod tests {
     #[test]
     fn registry_exposes_sequential_diverging_and_categorical_maps() {
         assert_eq!(palette("batlow").unwrap().kind(), PaletteKind::Sequential);
+        assert_eq!(palette("viridis").unwrap().kind(), PaletteKind::Sequential);
+        assert_eq!(palette("cividis").unwrap().kind(), PaletteKind::Sequential);
+        assert_eq!(palette("plasma").unwrap().kind(), PaletteKind::Sequential);
+        assert_eq!(palette("inferno").unwrap().kind(), PaletteKind::Sequential);
+        assert_eq!(palette("magma").unwrap().kind(), PaletteKind::Sequential);
         assert_eq!(palette("vik").unwrap().kind(), PaletteKind::Diverging);
         assert_eq!(palette("batlowS").unwrap().kind(), PaletteKind::Qualitative);
         assert_eq!(palette("batlow").unwrap().len(), 256);
+        for name in ["viridis", "cividis", "plasma", "inferno", "magma"] {
+            assert_eq!(palette(name).unwrap().len(), 256);
+        }
         assert_eq!(palette("vik").unwrap().len(), 256);
         assert_eq!(palette("batlowS").unwrap().len(), 100);
         let categorical = palette("batlowS").unwrap();
@@ -145,8 +270,29 @@ mod tests {
             .collect::<std::collections::HashSet<_>>();
         assert_eq!(unique.len(), categorical.len());
         assert_eq!(palette("batlow").unwrap().color(0), Some("#011959"));
+        assert_eq!(palette("viridis").unwrap().color(0), Some("#440154"));
+        assert_eq!(palette("cividis").unwrap().color(0), Some("#00224E"));
+        assert_eq!(palette("plasma").unwrap().color(0), Some("#0D0887"));
+        assert_eq!(palette("inferno").unwrap().color(0), Some("#000004"));
+        assert_eq!(palette("magma").unwrap().color(0), Some("#000004"));
         assert_eq!(palette("vik").unwrap().sample(0.5).unwrap(), "#ECE5E0");
         assert!(palette("not-present").is_none());
+    }
+
+    #[test]
+    fn continuous_sampling_interpolates_source_stops_and_validates_positions() {
+        let viridis = palette("viridis").unwrap();
+        assert_eq!(viridis.sample_continuous_rgb(0.0).unwrap(), [68, 1, 84]);
+        assert_eq!(viridis.sample_continuous_rgb(1.0).unwrap(), [253, 231, 37]);
+        assert_eq!(viridis.sample_continuous_rgb(0.5).unwrap(), [33, 145, 141]);
+        assert_eq!(viridis.sample(0.5).unwrap(), "#21918C");
+        assert!(viridis.sample_continuous_rgb(f64::NAN).is_err());
+        assert!(viridis.sample_continuous_rgb(-0.1).is_err());
+        assert!(viridis.sample_continuous_rgb(1.1).is_err());
+        assert!(palette("batlowS")
+            .unwrap()
+            .sample_continuous_rgb(0.5)
+            .is_err());
     }
 
     #[test]
@@ -170,5 +316,32 @@ mod tests {
         assert!(colors.sample(0.5).is_err());
         assert!(palette("vik").unwrap().sample(f64::NAN).is_err());
         assert!(palette("vik").unwrap().sample(1.1).is_err());
+    }
+
+    #[test]
+    fn white_background_series_styles_preserve_source_colors_with_graphic_contrast() {
+        let categorical = palette("batlowS").unwrap();
+        let styles = (0..12)
+            .map(|index| categorical.series_style_on_white(index, Marker::Circle, index % 2 == 1))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        assert!(styles
+            .iter()
+            .all(|style| { contrast_on_white(style.color).is_some_and(|ratio| ratio >= 3.0) }));
+        assert_eq!(
+            styles
+                .iter()
+                .map(|style| style.color)
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            styles.len()
+        );
+        assert!(palette("batlow")
+            .unwrap()
+            .series_style_on_white(0, Marker::Circle, false)
+            .is_err());
+        assert!(categorical
+            .series_style_on_white(62, Marker::Circle, false)
+            .is_err());
     }
 }

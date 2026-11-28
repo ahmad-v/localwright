@@ -17,3 +17,16 @@ Localwright PR #18 was merged as `8e42f3feec829278fc4acc317da16ab909d10290`. The
 These are hosted build and automated integration results for the tested commit. They do not verify physical audio devices, screen-reader behavior, or all consumer workflows. The multiple-project-tabs feature is on a subsequent branch and is not included in these results.
 
 The GitHub check workflow defines five platform jobs. Record hosted results after they run. Physical-device operation, accessibility, runtime isolation and release verification remain open.
+
+# Local verification additions
+
+- `cargo test --locked -p localwright-core figure::tests --lib`: 8 figure tests passed, including renderer output for all ten distinct monochrome line styles and the bounded five-marker scatter selector.
+- `cargo clippy --locked -p localwright-core --all-targets -- -D warnings`: passed.
+- Hosted workflow verification for this feature commit is pending; no platform-specific GUI or printed output testing is claimed.
+### Scientific vector PDF export
+
+`cargo +1.88.0 test --locked -p localwright-core --features figure-pdf`: 19 unit tests and 5 doctests passed (the feature-only README sample is ignored by rustdoc); Rust 1.95 feature Clippy, default workspace check, format check, capability registry validation and `git diff --check` also passed. The standalone `scientific_pdf` example generated a PDF inspected with Poppler `pdfinfo`: one unencrypted page, 510 × 340.5 points (180 × 120 mm), PDF 1.7. `pdftoppm` rasterized the PDF for visual inspection; title, axes, legend, lines and markers rendered with two high-contrast categorical samples and marker/dash differences. `pdffonts` found no embedded fonts because labels are vector outlines. The unit test verifies no image XObject marker and no overwrite. This is local Linux visual validation, not cross-platform typography equivalence.
+
+### Shared runtime Windows console option
+
+The private-engine invocation contract now includes an opt-in hidden-console flag. The Localwright engine process fixture requests this flag on Windows, exercising the same bounded runtime launch path while checking normal output and exit handling. Local Linux engine tests (4) and strict Clippy pass; the five-target native workflow is required to compile and exercise the Windows branch.
