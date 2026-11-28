@@ -3,6 +3,7 @@
 mod commands;
 mod preferences;
 mod project_tabs;
+mod session;
 mod shortcuts;
 mod table;
 pub use commands::{CommandDescriptor, CommandMenu, WorkbenchCommand, COMMAND_REGISTRY};
@@ -18,6 +19,9 @@ use iced::{
 use localwright_core::{Error, ErrorKind, Handler, Job, Operation, Outcome, Request, Result};
 use preferences::{app_preferences_path, Preferences};
 use project_tabs::{PersistedProjectTab, PersistedProjectTabs, MAX_PROJECT_ID, MAX_PROJECT_TABS};
+pub use session::{
+    WorkspaceLayout, WorkspaceProject, WorkspaceSession, WorkspaceView, MAX_SESSION_PROJECTS,
+};
 pub use shortcuts::{ShortcutBinding, ShortcutCommand, ShortcutKey, ShortcutRegistry};
 use std::{fmt, path::PathBuf};
 pub use table::{
@@ -340,6 +344,28 @@ impl Project {
         project.title.clone_from(&tab.title);
         project
     }
+
+    fn from_session(saved: &WorkspaceProject, id: u64) -> Self {
+        Self {
+            id,
+            title: saved.title.clone(),
+            selected: saved.operation.clone(),
+            input: saved.input.clone(),
+            input_selection: (!saved.input.is_empty()).then(|| PathBuf::from(&saved.input)),
+            output: saved.output.clone(),
+            output_selection: (!saved.output.is_empty()).then(|| PathBuf::from(&saved.output)),
+            parameter: saved.parameter.clone(),
+            editor: text_editor::Content::with_text(&saved.draft),
+            preview: String::new(),
+            workspace_tab: match saved.view {
+                WorkspaceView::Results => WorkspaceTab::Result,
+                WorkspaceView::Draft => WorkspaceTab::Draft,
+            },
+            table_workspace: None,
+            table_filter: String::new(),
+            table_state: TableState::new(MAX_TABLE_PAGE_SIZE),
+        }
+    }
 }
 
 fn restore_projects(saved: &PersistedProjectTabs, ops: &[Operation]) -> (Vec<Project>, u64, u64) {
@@ -385,6 +411,11 @@ enum Message {
     InputPicked(u64, Option<PathBuf>),
     PickOutput,
     OutputPicked(u64, Option<PathBuf>),
+    SaveSession,
+    SaveSessionPicked(Option<PathBuf>),
+    RestoreSession,
+    RestoreSessionPicked(Option<PathBuf>),
+    SessionRestored(std::result::Result<WorkspaceSession, String>),
     Run,
     Cancel,
     KeyPressed(Key, Modifiers),
@@ -519,6 +550,114 @@ impl State {
         self.save_preferences();
     }
 
+    fn workspace_session(&self) -> Result<WorkspaceSession> {
+        let projects = self
+            .projects
+            .iter()
+            .map(|project| {
+                let selected_path = |display: &str, path: &Option<PathBuf>| -> Result<String> {
+                    match path {
+                        Some(path) => path
+                            .to_str()
+                            .map(str::to_owned)
+                            .ok_or_else(|| Error::input("Session paths must be valid UTF-8")),
+                        None => Ok(display.to_owned()),
+                    }
+                };
+                if !project.selected.is_empty()
+                    && !self
+                        .ops
+                        .iter()
+                        .any(|operation| operation.id == project.selected)
+                {
+                    return Err(Error::input(
+                        "The active operation is not registered by this application",
+                    ));
+                }
+                Ok(WorkspaceProject {
+                    title: project.title.clone(),
+                    operation: project.selected.clone(),
+                    input: selected_path(&project.input, &project.input_selection)?,
+                    output: selected_path(&project.output, &project.output_selection)?,
+                    parameter: project.parameter.clone(),
+                    draft: project.editor.text(),
+                    view: match project.workspace_tab {
+                        WorkspaceTab::Draft => WorkspaceView::Draft,
+                        WorkspaceTab::Result | WorkspaceTab::Table => WorkspaceView::Results,
+                    },
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let active_project = self
+            .projects
+            .iter()
+            .position(|project| project.id == self.active_project)
+            .ok_or_else(|| Error::input("The active workbench project is unavailable"))?;
+        let session = WorkspaceSession {
+            schema_version: 1,
+            layout: WorkspaceLayout {
+                controls_ratio: self.preferences.panel_ratio,
+                toolbar_visible: self.preferences.toolbar_visible,
+            },
+            active_project,
+            projects,
+        };
+        session.validate()?;
+        Ok(session)
+    }
+
+    fn restore_workspace_session(
+        &mut self,
+        session: WorkspaceSession,
+    ) -> std::result::Result<usize, String> {
+        session.validate().map_err(|error| error.to_string())?;
+        if self.projects.len().saturating_add(session.projects.len()) > MAX_PROJECT_TABS {
+            return Err(format!(
+                "Restoring these tabs would exceed the {MAX_PROJECT_TABS}-tab workbench limit"
+            ));
+        }
+        for project in &session.projects {
+            if !project.operation.is_empty()
+                && !self
+                    .ops
+                    .iter()
+                    .any(|operation| operation.id == project.operation)
+            {
+                return Err(format!(
+                    "Operation {:?} is not available in this application",
+                    project.operation
+                ));
+            }
+        }
+        let count = session.projects.len();
+        let first_id = self.next_project_id;
+        let final_id = first_id
+            .checked_add(count as u64)
+            .ok_or_else(|| "Project identifier space exhausted".to_owned())?;
+        if final_id.saturating_sub(1) > MAX_PROJECT_ID {
+            return Err("Project identifier space exhausted".into());
+        }
+        let restored = session
+            .projects
+            .iter()
+            .enumerate()
+            .map(|(index, project)| Project::from_session(project, first_id + index as u64))
+            .collect::<Vec<_>>();
+        let active_id = restored[session.active_project].id;
+        self.projects.extend(restored);
+        self.active_project = active_id;
+        self.next_project_id = final_id;
+        self.preferences.panel_ratio = session.layout.controls_ratio;
+        self.preferences.toolbar_visible = session.layout.toolbar_visible;
+        self.panes.resize(
+            self.workspace_split,
+            f32::from(self.preferences.panel_ratio) / 100.0,
+        );
+        self.persist_project_tabs();
+        self.announce_project_selection(format!("Restored {count} project tabs"));
+        Ok(count)
+    }
+
     fn resize_controls(&mut self, delta: i8) {
         let current = i16::from(self.preferences.panel_ratio);
         let next = (current + i16::from(delta)).clamp(20, 70) as u8;
@@ -613,6 +752,63 @@ impl State {
                 if let Some(project) = self.projects.iter_mut().find(|project| project.id == id) {
                     apply_path_selection(&mut project.output, &mut project.output_selection, path);
                 }
+            }
+            Message::SaveSession => {
+                return Task::perform(
+                    async {
+                        rfd::AsyncFileDialog::new()
+                            .set_title("Save workspace session")
+                            .add_filter("Localwright workspace session (.json)", &["json"])
+                            .save_file()
+                            .await
+                            .map(|file| file.path().to_path_buf())
+                    },
+                    Message::SaveSessionPicked,
+                );
+            }
+            Message::SaveSessionPicked(Some(path)) => {
+                let result = self
+                    .workspace_session()
+                    .and_then(|session| session.save(&path))
+                    .map_err(|error| error.to_string());
+                self.status = match result {
+                    Ok(()) => format!("Saved workspace session to {}", path.display()),
+                    Err(error) => format!("Could not save workspace session: {error}"),
+                };
+            }
+            Message::SaveSessionPicked(None) => {}
+            Message::RestoreSession => {
+                return Task::perform(
+                    async {
+                        rfd::AsyncFileDialog::new()
+                            .set_title("Restore workspace session")
+                            .add_filter("JSON session files", &["json"])
+                            .pick_file()
+                            .await
+                            .map(|file| file.path().to_path_buf())
+                    },
+                    Message::RestoreSessionPicked,
+                );
+            }
+            Message::RestoreSessionPicked(Some(path)) => {
+                return Task::perform(
+                    async move { WorkspaceSession::load(&path).map_err(|error| error.to_string()) },
+                    Message::SessionRestored,
+                );
+            }
+            Message::RestoreSessionPicked(None) => {}
+            Message::SessionRestored(Ok(session)) => {
+                match self.restore_workspace_session(session) {
+                    Ok(restored) => {
+                        self.status = format!(
+                            "Restored {restored} project tabs. No operation was run; review paths before choosing Run."
+                        );
+                    }
+                    Err(error) => self.status = format!("Could not restore session: {error}"),
+                }
+            }
+            Message::SessionRestored(Err(error)) => {
+                self.status = format!("Could not read workspace session: {error}");
             }
             Message::Cancel => {
                 if let Some(j) = &self.job {
@@ -807,6 +1003,8 @@ impl State {
                 return match command {
                     WorkbenchCommand::OpenInput => self.update(Message::PickInput),
                     WorkbenchCommand::ChooseOutput => self.update(Message::PickOutput),
+                    WorkbenchCommand::SaveSession => self.update(Message::SaveSession),
+                    WorkbenchCommand::RestoreSession => self.update(Message::RestoreSession),
                     WorkbenchCommand::NewProject => self.update(Message::NewProject),
                     WorkbenchCommand::CloseProject => {
                         self.update(Message::CloseProject(self.active_project))
@@ -1710,6 +1908,58 @@ mod tests {
                 && project.parameter.is_empty()
                 && project.preview.is_empty()
         }));
+    }
+
+    #[test]
+    fn workspace_session_restores_operation_context_by_appending_without_running_it() {
+        let mut source = state_for_test();
+        source.active_project_mut().input = "/tmp/first.csv".into();
+        source.active_project_mut().parameter = "first parameter".into();
+        source.active_project_mut().editor = text_editor::Content::with_text("saved draft");
+        source.active_project_mut().workspace_tab = WorkspaceTab::Draft;
+        source.preferences.panel_ratio = 48;
+        source.preferences.toolbar_visible = false;
+        source.add_project();
+        source.active_project_mut().output = "/tmp/output.csv".into();
+        source.active_project_mut().parameter = "second parameter".into();
+
+        let snapshot = source.workspace_session().unwrap();
+        assert_eq!(snapshot.active_project, 1);
+        assert_eq!(snapshot.projects.len(), 2);
+
+        let mut restored = state_for_test();
+        assert_eq!(restored.restore_workspace_session(snapshot).unwrap(), 2);
+        assert_eq!(restored.projects.len(), 3);
+        assert_eq!(restored.active_project, 3);
+        assert_eq!(restored.next_project_id, 4);
+        assert_eq!(restored.preferences.panel_ratio, 48);
+        assert!(!restored.preferences.toolbar_visible);
+        assert!(restored.job.is_none());
+        let active = restored.active_project();
+        assert_eq!(active.selected, "test");
+        assert_eq!(active.output, "/tmp/output.csv");
+        assert_eq!(active.parameter, "second parameter");
+        assert!(active.preview.is_empty());
+        assert!(matches!(active.workspace_tab, WorkspaceTab::Result));
+
+        restored.activate_project(2);
+        assert_eq!(restored.active_project().input, "/tmp/first.csv");
+        assert_eq!(restored.active_project().editor.text(), "saved draft\n");
+        assert!(matches!(
+            restored.active_project().workspace_tab,
+            WorkspaceTab::Draft
+        ));
+    }
+
+    #[test]
+    fn session_restore_rejects_unknown_app_operations_without_changing_workspace() {
+        let mut state = state_for_test();
+        let mut session = state.workspace_session().unwrap();
+        session.projects[0].operation = "not-registered".into();
+        assert!(state.restore_workspace_session(session).is_err());
+        assert_eq!(state.projects.len(), 1);
+        assert_eq!(state.active_project, 1);
+        assert!(state.job.is_none());
     }
 
     #[test]
