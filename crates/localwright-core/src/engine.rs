@@ -80,6 +80,8 @@ pub struct EngineInvocation {
     pub stdin: Vec<u8>,
     /// Additional values whose keys appear in the engine's allowlist.
     pub environment: BTreeMap<String, String>,
+    /// Avoid opening a console window for this child on Windows. Ignored elsewhere.
+    pub hide_console: bool,
 }
 
 /// Bounded output and process exit status returned by a private engine.
@@ -132,6 +134,12 @@ impl ResolvedEngine {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        #[cfg(windows)]
+        if invocation.hide_console {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
         #[cfg(windows)]
         if let Some(system_root) = std::env::var_os("SystemRoot") {
             command.env("SystemRoot", system_root);
@@ -770,6 +778,7 @@ mod tests {
                         ("FIXTURE_VALUE".into(), "private".into()),
                         ("LOCALWRIGHT_ENGINE_TEST_CHILD".into(), "echo".into()),
                     ]),
+                    hide_console: cfg!(windows),
                 },
                 &Job::new(),
             )
