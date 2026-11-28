@@ -1084,8 +1084,12 @@ impl State {
         let themes = THEMES.iter().map(|t| t.0.to_owned()).collect::<Vec<_>>();
         let shortcut_keys = shortcut_key_labels();
         let enhanced_focus = self.preferences.enhanced_focus_outlines;
-        let picker_style = move |theme, status| styled_picker(theme, status, enhanced_focus);
-        let input_style = move |theme, status| styled_input(theme, status, enhanced_focus);
+        let picker_style = move |theme: &Theme, status: pick_list::Status| {
+            styled_picker(theme, status, enhanced_focus)
+        };
+        let input_style = move |theme: &Theme, status: text_input::Status| {
+            styled_input(theme, status, enhanced_focus)
+        };
         let selected = ops.iter().copied().find(|o| o.0.id == project.selected);
         let hint = selected.map(|o| o.0.hint).unwrap_or("");
         let menu_bar = row(CommandMenu::all()
@@ -1334,7 +1338,7 @@ impl State {
                         }
                         WorkspaceTab::Draft => column![text("Editable draft / transcript"), {
                             let editor = text_editor(&project.editor).height(Length::Fill).style(
-                                move |theme, status| {
+                                move |theme: &Theme, status: text_editor::Status| {
                                     let mut style = text_editor::default(theme, status);
                                     style.border = control_border(
                                         theme,
