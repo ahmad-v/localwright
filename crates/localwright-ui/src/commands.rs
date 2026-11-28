@@ -11,6 +11,10 @@ pub enum WorkbenchCommand {
     NewProject,
     /// Close the active project tab.
     CloseProject,
+    /// Save operation context and shared layout as a versioned session file.
+    SaveSession,
+    /// Restore a saved session by appending its project tabs.
+    RestoreSession,
     /// Run the selected operation.
     Run,
     /// Request cancellation of the active job.
@@ -77,6 +81,18 @@ pub const COMMAND_REGISTRY: &[CommandDescriptor] = &[
     CommandDescriptor {
         command: WorkbenchCommand::CloseProject,
         label: "Close project tab",
+        menu: CommandMenu::File,
+        toolbar: false,
+    },
+    CommandDescriptor {
+        command: WorkbenchCommand::SaveSession,
+        label: "Save workspace session…",
+        menu: CommandMenu::File,
+        toolbar: false,
+    },
+    CommandDescriptor {
+        command: WorkbenchCommand::RestoreSession,
+        label: "Restore workspace session…",
         menu: CommandMenu::File,
         toolbar: false,
     },
