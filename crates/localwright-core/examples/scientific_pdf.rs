@@ -18,12 +18,12 @@ fn main() -> localwright_core::Result<()> {
         FigureSeries::new(
             "Control",
             &control,
-            colors.series_style(0, localwright_core::figure::Marker::Circle, false)?,
+            colors.series_style_on_white(0, localwright_core::figure::Marker::Circle, false)?,
         ),
         FigureSeries::new(
             "Treatment",
             &treatment,
-            colors.series_style(1, localwright_core::figure::Marker::Triangle, true)?,
+            colors.series_style_on_white(1, localwright_core::figure::Marker::Triangle, true)?,
         ),
     ];
     export_line_series_pdf(

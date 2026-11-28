@@ -37,6 +37,8 @@ fn main() -> localwright_core::Result<()> {
 
 Render and export multiple labeled series with shared axes and a legend. Line figures include marker and dash examples in the legend; scatter figures show each series marker.
 
+For white-background categorical figures, `ScientificPalette::series_style_on_white` selects source palette samples with at least 3:1 contrast for non-text marks, then adds the requested marker and dash channels. It rejects non-qualitative palettes and indices beyond the available contrasting samples. This helps plotted marks remain visible; it does not establish full WCAG conformance or replace labels and visual review.
+
 For black-only print, select redundant marker and line encodings instead of relying on hue. The built-in helpers return distinct styles for up to ten line series (five markers across solid and dashed strokes) and five scatter series. They reject larger indices instead of silently repeating a style. This is an encoding aid, not a guarantee that every dense figure is readable; use labels and inspect the final print size.
 
 ```rust,no_run
