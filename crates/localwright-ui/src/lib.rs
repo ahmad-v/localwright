@@ -153,8 +153,12 @@ fn control_border(theme: &Theme, focused: bool, enhanced_focus: bool) -> Border 
         _ => 4.0,
     };
     let palette = theme.palette();
-    let background = [palette.background.r, palette.background.g, palette.background.b]
-        .map(|channel| (channel * 255.0).round() as u8);
+    let background = [
+        palette.background.r,
+        palette.background.g,
+        palette.background.b,
+    ]
+    .map(|channel| (channel * 255.0).round() as u8);
     let color = if enhanced_focus {
         let [red, green, blue] = high_contrast_focus_color(background);
         Color::from_rgb8(red, green, blue)
@@ -164,7 +168,11 @@ fn control_border(theme: &Theme, focused: bool, enhanced_focus: bool) -> Border 
     Border {
         radius: radius.into(),
         width: if focused {
-            if enhanced_focus { 4.0 } else { 3.0 }
+            if enhanced_focus {
+                4.0
+            } else {
+                3.0
+            }
         } else {
             1.0
         },
