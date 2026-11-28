@@ -11,7 +11,7 @@ documentation = "https://docs.rs/localwright-core"
 readme = "README.md"
 keywords = ["offline", "desktop", "filesystem"]
 categories = ["filesystem"]
-include = ["src/**", "data/palettes/**", "test-fixtures/**", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "THIRD_PARTY_NOTICES.md"]
+include = ["src/**", "examples/**", "data/palettes/**", "test-fixtures/**", "README.md", "LICENSE-MIT", "LICENSE-APACHE", "THIRD_PARTY_NOTICES.md"]
 
 [dependencies]
 serde = { version = "=1.0.221", features = ["derive"] }
@@ -19,4 +19,14 @@ serde_json = "=1.0.140"
 tempfile = "=3.19.1"
 command-group = "=5.0.1"
 sha2 = "=0.10.9"
+svg2pdf = { version = "=0.13.0", default-features = false, features = ["text"], optional = true }
+usvg = { version = "=0.45.1", default-features = false, features = ["system-fonts", "text"], optional = true }
+
+[features]
+default = []
+figure-pdf = ["dep:svg2pdf", "dep:usvg"]
+
+[[example]]
+name = "scientific_pdf"
+required-features = ["figure-pdf"]
 

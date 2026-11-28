@@ -23,3 +23,6 @@ The GitHub check workflow defines five platform jobs. Record hosted results afte
 - `cargo test --locked -p localwright-core figure::tests --lib`: 8 figure tests passed, including renderer output for all ten distinct monochrome line styles and the bounded five-marker scatter selector.
 - `cargo clippy --locked -p localwright-core --all-targets -- -D warnings`: passed.
 - Hosted workflow verification for this feature commit is pending; no platform-specific GUI or printed output testing is claimed.
+### Scientific vector PDF export
+
+`cargo test --locked -p localwright-core --features figure-pdf`: 18 unit tests and 6 doctests passed. `cargo clippy --locked -p localwright-core --features figure-pdf --all-targets -- -D warnings`, `cargo check --locked --workspace`, format check and `git diff --check` passed. The standalone `scientific_pdf` example generated a PDF inspected with Poppler `pdfinfo`: one unencrypted page, 510 × 340.5 points (180 × 120 mm), PDF 1.7. `pdftoppm` rasterized the PDF for visual inspection; title, axes, legend, lines and markers rendered. `pdffonts` found no embedded fonts because labels are vector outlines. The unit test verifies no image XObject marker and no overwrite. This is local Linux visual validation, not cross-platform typography equivalence.
