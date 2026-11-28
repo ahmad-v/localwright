@@ -399,3 +399,7 @@ The ecosystem is not complete. Data Studio still needs ordinary typed CSV/TSV/XL
 2. Finish File PR #17 and Speech PR #15 against Localwright `e57e839`, then confirm all four consumer manifests/lockfiles refer to a reviewed immutable shared revision.
 3. Continue Data Studio’s default typed pipeline migration and a real paginated/virtualized typed table workspace; preserve legacy projects and verify XLSX bounds.
 4. Continue native File/Document/Speech workflows and scientific figures as separate coherent, tested batches. Refresh this section with exact commits and current workflow identifiers after the next integration milestone.
+
+## Scientific figure style increment — 28 November 2026
+
+Localwright branch `codex/monochrome-figure-styles` adds public black-only figure style selectors: ten unique line combinations from five markers and solid/dashed strokes, and five scatter markers. The renderer regression test confirms all ten line combinations are emitted with a legend. Core tests (16 unit tests and 5 doctests), formatting, and strict Clippy pass locally. Hosted verification is pending. This addresses one bounded v1.3 print-accessibility item only; it does not complete scientific figures, palette targets, physical sizing, PDF export, print inspection, or platform accessibility verification.

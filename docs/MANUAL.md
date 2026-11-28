@@ -5,7 +5,7 @@ Development source only. Launch the GUI after compiling. Choose an operation, en
 - `settings`: JSON settings parse/save-new.
 - `jobs`: Single background job and cooperative cancellation.
 - `themes`: 20 client-area color presets.
-- `figures`: Monochrome vector scatter SVG.
+- `figures`: Labeled multi-series SVG line/scatter exports, licensed scientific palettes and black-only marker/dash style helpers for print-safe figures.
 - `external-consumer`: Independent character-count GUI example.
 
 Limitations: This source increment has not yet been compiled in the current workspace. Only two crates; jobs are cooperative, not hard timeout or process isolation. Theme presets primarily customize client colors; system theme detection, persistent project tabs, icons, localization, complete accessibility and the scientific palette suite remain open. Private engine discovery and process lifecycle hygiene are available, but do not constitute a security sandbox.
