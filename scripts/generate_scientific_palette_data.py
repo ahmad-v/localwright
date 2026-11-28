@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate 8-bit Rust palette tables from the vendored Crameri RGB data."""
+"""Generate 8-bit Rust palette tables from hash-pinned RGB sample data."""
 from __future__ import annotations
 
 import hashlib
@@ -10,9 +10,28 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "crates/localwright-core/data/palettes"
 OUTPUT = ROOT / "crates/localwright-core/src/palette_data.rs"
 SOURCE = json.loads((DATA / "source.json").read_text(encoding="utf-8"))
-FILES = {"BATLOW": "batlow.txt", "VIK": "vik.txt", "BATLOW_S": "batlowS.txt"}
+FILES = {
+    "BATLOW": "batlow.txt",
+    "VIK": "vik.txt",
+    "BATLOW_S": "batlowS.txt",
+    "VIRIDIS": "viridis.txt",
+    "CIVIDIS": "cividis.txt",
+    "PLASMA": "plasma.txt",
+    "INFERNO": "inferno.txt",
+    "MAGMA": "magma.txt",
+}
 
 lines = ["// Generated 8-bit palette values. Regenerate with scripts/generate_scientific_palette_data.py.\n"]
+license_files = [(SOURCE["license_file"], SOURCE["license_sha256"])]
+license_files.extend(
+    (metadata["license_file"], metadata["license_sha256"])
+    for metadata in SOURCE.get("secondary_sources", {}).values()
+)
+for filename, expected in license_files:
+    actual = hashlib.sha256((DATA / filename).read_bytes()).hexdigest()
+    if actual != expected:
+        raise SystemExit(f"{filename}: SHA-256 {actual} does not match {expected}")
+
 for constant, filename in FILES.items():
     data = (DATA / filename).read_text(encoding="utf-8")
     expected = SOURCE["files"][filename]["sha256"]
@@ -28,7 +47,7 @@ for constant, filename in FILES.items():
         colors.append("#" + "".join(f"{component:02X}" for component in rgb))
     if len(colors) != SOURCE["files"][filename]["entries"]:
         raise SystemExit(f"{filename}: unexpected palette length {len(colors)}")
-    lines.append(f"pub(super) const {constant}: &[&str] = &[\n")
+    lines.append(f"#[rustfmt::skip]\npub(super) const {constant}: &[&str] = &[\n")
     lines.extend(f'    "{color}",\n' for color in colors)
     lines.append("];\n")
 OUTPUT.write_text("".join(lines), encoding="utf-8")
