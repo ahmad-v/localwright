@@ -120,7 +120,7 @@ fn main() -> localwright_core::Result<()> {
 
 Enable the opt-in `figure-pdf` feature to export the same multi-series geometry as vector PDF at an explicit physical page size. Dimensions are bounded to 200–4000 CSS pixels per side at 96 DPI. PDF labels use a font installed on the host and are converted to vector outlines, so no font file is embedded; font substitution can change text metrics between systems. The generated line and scatter figures contain vector paths and text outlines (no raster images). `svg2pdf` is licensed MIT OR Apache-2.0; see the dependency lockfile and upstream notices. The feature does not add a GUI or PDF reader.
 
-```rust,no_run
+```rust,ignore
 use localwright_core::figure::{
     export_line_series_pdf, FigureDimensions, FigureLabels, FigureSeries, SeriesStyle,
 };
