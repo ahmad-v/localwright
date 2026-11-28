@@ -17,3 +17,9 @@ Localwright PR #18 was merged as `8e42f3feec829278fc4acc317da16ab909d10290`. The
 These are hosted build and automated integration results for the tested commit. They do not verify physical audio devices, screen-reader behavior, or all consumer workflows. The multiple-project-tabs feature is on a subsequent branch and is not included in these results.
 
 The GitHub check workflow defines five platform jobs. Record hosted results after they run. Physical-device operation, accessibility, runtime isolation and release verification remain open.
+
+# Local verification additions
+
+- `cargo test --locked -p localwright-core figure::tests --lib`: 8 figure tests passed, including renderer output for all ten distinct monochrome line styles and the bounded five-marker scatter selector.
+- `cargo clippy --locked -p localwright-core --all-targets -- -D warnings`: passed.
+- Hosted workflow verification for this feature commit is pending; no platform-specific GUI or printed output testing is claimed.

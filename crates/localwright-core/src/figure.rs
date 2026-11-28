@@ -74,6 +74,56 @@ impl SeriesStyle {
         dashed: false,
     };
 
+    /// Select a black-only line style with a distinct marker and dash pattern.
+    ///
+    /// The first five series use solid lines and the next five use dashed
+    /// lines. Each group cycles through five distinct markers, providing ten
+    /// distinguishable combinations before the style set repeats. This is a
+    /// useful starting point for print-safe figures; labels and legends remain
+    /// necessary for interpretation.
+    pub fn monochrome_line(series_index: usize) -> Result<Self> {
+        const MARKERS: [Marker; 5] = [
+            Marker::Circle,
+            Marker::Square,
+            Marker::Triangle,
+            Marker::Diamond,
+            Marker::Cross,
+        ];
+        if series_index >= MARKERS.len() * 2 {
+            return Err(Error::input(
+                "Monochrome line styles support at most ten distinct series",
+            ));
+        }
+        Ok(Self {
+            color: "#000000",
+            marker: MARKERS[series_index % MARKERS.len()],
+            dashed: series_index >= MARKERS.len(),
+        })
+    }
+
+    /// Select a black-only scatter style with a distinct point marker.
+    ///
+    /// Scatter series have no connecting stroke, so dash patterns cannot
+    /// distinguish them. This method provides five marker styles and rejects
+    /// larger indices instead of silently assigning a duplicate.
+    pub fn monochrome_scatter(series_index: usize) -> Result<Self> {
+        const MARKERS: [Marker; 5] = [
+            Marker::Circle,
+            Marker::Square,
+            Marker::Triangle,
+            Marker::Diamond,
+            Marker::Cross,
+        ];
+        let marker = MARKERS.get(series_index).copied().ok_or_else(|| {
+            Error::input("Monochrome scatter styles support at most five distinct series")
+        })?;
+        Ok(Self {
+            color: "#000000",
+            marker,
+            dashed: false,
+        })
+    }
+
     fn validate(self) -> Result<Self> {
         let bytes = self.color.as_bytes();
         if bytes.len() != 7 || bytes[0] != b'#' || !bytes[1..].iter().all(u8::is_ascii_hexdigit) {
@@ -770,6 +820,72 @@ pub fn export_line_svg_styled(
 mod tests {
     use super::*;
     use crate::palettes::palette;
+
+    #[test]
+    fn monochrome_styles_are_distinct_and_bounded_for_plot_kind() {
+        let lines = (0..10)
+            .map(SeriesStyle::monochrome_line)
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        assert!(lines.iter().all(|style| style.color == "#000000"));
+        for left in 0..lines.len() {
+            for right in left + 1..lines.len() {
+                assert_ne!(lines[left], lines[right]);
+            }
+        }
+        assert!(SeriesStyle::monochrome_line(10).is_err());
+
+        let scatter = (0..5)
+            .map(SeriesStyle::monochrome_scatter)
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        assert!(scatter.iter().all(|style| style.color == "#000000"));
+        assert!(scatter.iter().all(|style| !style.dashed));
+        assert!(SeriesStyle::monochrome_scatter(5).is_err());
+
+        let labels = [
+            "Series 1",
+            "Series 2",
+            "Series 3",
+            "Series 4",
+            "Series 5",
+            "Series 6",
+            "Series 7",
+            "Series 8",
+            "Series 9",
+            "Series 10",
+        ];
+        let points = [(0.0, 0.0), (1.0, 1.0)];
+        let series = labels
+            .iter()
+            .enumerate()
+            .map(|(index, label)| {
+                Ok(FigureSeries::new(
+                    label,
+                    &points,
+                    SeriesStyle::monochrome_line(index)?,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+        let chart = line_series_svg_labeled(
+            &series,
+            1000,
+            900,
+            FigureLabels {
+                title: "Print test",
+                x_axis: "X",
+                y_axis: "Y",
+            },
+        )
+        .unwrap();
+        assert_eq!(chart.matches("<polyline ").count(), 10);
+        assert_eq!(chart.matches("stroke-dasharray=\"7 4\"").count(), 10);
+        assert!(chart.contains("stroke=\"#000000\""));
+        assert!(chart.contains("<rect "));
+        assert!(chart.contains("aria-label=\"Legend\""));
+    }
+
     #[test]
     fn line_chart_preserves_order_and_exports_once() {
         let points = [(3.0, 0.0), (1.0, 5.0), (2.0, 2.5)];
