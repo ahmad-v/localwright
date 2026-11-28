@@ -74,6 +74,13 @@
       "fixture_status": "Persistence and workbench tests passed; exact source head passed hosted Quick, Integration and five-target native checks; native device interaction remains pending"
     },
     {
+      "operation": "accessibility-focus",
+      "description": "Opt-in persisted focus styling selects a maximum-contrast black/white sRGB outline for focused text inputs and draft editor; exports contrast helpers and exposes a keyboard-reachable preference toggle.",
+      "status": "implemented-unverified",
+      "targets": [],
+      "fixture_status": "Source and palette contrast/settings migration tests added; hosted verification pending; screen-reader behavior remains unverified"
+    },
+    {
       "operation": "typed-table-workspace",
       "description": "Reusable paginated Iced table with typed stable sorting, null preservation, row selection, and case-insensitive filtering over bounded loaded previews; standalone example included.",
       "status": "implemented-unverified",

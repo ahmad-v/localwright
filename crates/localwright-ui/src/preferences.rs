@@ -23,6 +23,9 @@ pub(super) struct Preferences {
     /// Whether the common action toolbar is shown.
     #[serde(default = "default_toolbar_visible")]
     pub toolbar_visible: bool,
+    /// Whether focused inputs use a 4-pixel black/white contrast outline.
+    #[serde(default)]
+    pub enhanced_focus_outlines: bool,
     /// Ordered project-tab metadata and active selection; tab content stays in memory.
     #[serde(default)]
     pub project_tabs: PersistedProjectTabs,
@@ -45,6 +48,7 @@ impl Default for Preferences {
             panel_ratio: default_panel_ratio(),
             shortcuts: ShortcutRegistry::default(),
             toolbar_visible: default_toolbar_visible(),
+            enhanced_focus_outlines: false,
             project_tabs: PersistedProjectTabs::default(),
         }
     }
@@ -219,17 +223,22 @@ mod tests {
         let path = directory.path().join("app/workbench.json");
         let prefs = Preferences {
             toolbar_visible: false,
+            enhanced_focus_outlines: true,
             ..Preferences::default()
         };
         prefs.save(&path).unwrap();
-        assert!(!Preferences::load(&path).unwrap().toolbar_visible);
+        let loaded = Preferences::load(&path).unwrap();
+        assert!(!loaded.toolbar_visible);
+        assert!(loaded.enhanced_focus_outlines);
 
         fs::write(
             &path,
             br#"{"schema_version":1,"theme":"Modern Light","scale":100}"#,
         )
         .unwrap();
-        assert!(Preferences::load(&path).unwrap().toolbar_visible);
+        let migrated = Preferences::load(&path).unwrap();
+        assert!(migrated.toolbar_visible);
+        assert!(!migrated.enhanced_focus_outlines);
     }
 
     #[test]
