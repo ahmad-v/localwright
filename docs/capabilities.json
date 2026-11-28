@@ -67,6 +67,13 @@
       "fixture_status": "17 unit tests and workspace compile passed; native-device interaction pending"
     },
     {
+      "operation": "workspace-sessions",
+      "description": "Explicit versioned session save/restore for up to 32 project tabs, operation context, paths, draft text and pane/toolbar layout; restore appends tabs without executing operations; result payloads and loaded tables are excluded.",
+      "status": "implemented-unverified",
+      "targets": [],
+      "fixture_status": "Source and persistence/workbench tests added; hosted Quick and native verification pending"
+    },
+    {
       "operation": "typed-table-workspace",
       "description": "Reusable paginated Iced table with typed stable sorting, null preservation, row selection, and case-insensitive filtering over bounded loaded previews; standalone example included.",
       "status": "implemented-unverified",
