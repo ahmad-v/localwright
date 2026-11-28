@@ -1,11 +1,13 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
+mod accessibility;
 mod commands;
 mod preferences;
 mod project_tabs;
 mod session;
 mod shortcuts;
 mod table;
+pub use accessibility::{contrast_ratio, high_contrast_focus_color};
 pub use commands::{CommandDescriptor, CommandMenu, WorkbenchCommand, COMMAND_REGISTRY};
 use iced::{
     keyboard::{key::Named, Key, Modifiers},
@@ -136,7 +138,7 @@ fn preset(name: &str) -> Theme {
     )
 }
 
-fn control_border(theme: &Theme, focused: bool) -> Border {
+fn control_border(theme: &Theme, focused: bool, enhanced_focus: bool) -> Border {
     let radius = match theme.to_string().as_str() {
         "Classic 95"
         | "Classic 2000"
@@ -150,10 +152,31 @@ fn control_border(theme: &Theme, focused: bool) -> Border {
         "Luna" | "Silver" | "Aqua" => 8.0,
         _ => 4.0,
     };
+    let palette = theme.palette();
+    let background = [
+        palette.background.r,
+        palette.background.g,
+        palette.background.b,
+    ]
+    .map(|channel| (channel * 255.0).round() as u8);
+    let color = if enhanced_focus {
+        let [red, green, blue] = high_contrast_focus_color(background);
+        Color::from_rgb8(red, green, blue)
+    } else {
+        theme.extended_palette().background.base.text
+    };
     Border {
         radius: radius.into(),
-        width: if focused { 3.0 } else { 1.0 },
-        color: theme.extended_palette().background.base.text,
+        width: if focused {
+            if enhanced_focus {
+                4.0
+            } else {
+                3.0
+            }
+        } else {
+            1.0
+        },
+        color,
     }
 }
 
@@ -406,6 +429,7 @@ enum Message {
     Theme(String),
     Scale(u16),
     ToolbarVisible(bool),
+    EnhancedFocusOutlines(bool),
     ShortcutKey(ShortcutCommand, String),
     PickInput,
     InputPicked(u64, Option<PathBuf>),
@@ -701,6 +725,15 @@ impl State {
             Message::ToolbarVisible(visible) => {
                 self.preferences.toolbar_visible = visible;
                 self.save_preferences();
+            }
+            Message::EnhancedFocusOutlines(enabled) => {
+                self.preferences.enhanced_focus_outlines = enabled;
+                self.save_preferences();
+                self.status = if enabled {
+                    "High-contrast focus outlines enabled".into()
+                } else {
+                    "High-contrast focus outlines disabled".into()
+                };
             }
             Message::ShortcutKey(command, label) => {
                 if let (Some(key), Some(mut binding)) = (
@@ -1050,6 +1083,13 @@ impl State {
         let ops = self.ops.iter().map(OperationChoice).collect::<Vec<_>>();
         let themes = THEMES.iter().map(|t| t.0.to_owned()).collect::<Vec<_>>();
         let shortcut_keys = shortcut_key_labels();
+        let enhanced_focus = self.preferences.enhanced_focus_outlines;
+        let picker_style = move |theme: &Theme, status: pick_list::Status| {
+            styled_picker(theme, status, enhanced_focus)
+        };
+        let input_style = move |theme: &Theme, status: text_input::Status| {
+            styled_input(theme, status, enhanced_focus)
+        };
         let selected = ops.iter().copied().find(|o| o.0.id == project.selected);
         let hint = selected.map(|o| o.0.hint).unwrap_or("");
         let menu_bar = row(CommandMenu::all()
@@ -1158,6 +1198,9 @@ impl State {
                             toggler(self.preferences.toolbar_visible)
                                 .label("Show toolbar")
                                 .on_toggle(Message::ToolbarVisible),
+                            toggler(self.preferences.enhanced_focus_outlines)
+                                .label("High-contrast focus outlines")
+                                .on_toggle(Message::EnhancedFocusOutlines),
                             text(hint),
                             text("Input path"),
                             row![
@@ -1295,11 +1338,12 @@ impl State {
                         }
                         WorkspaceTab::Draft => column![text("Editable draft / transcript"), {
                             let editor = text_editor(&project.editor).height(Length::Fill).style(
-                                |theme, status| {
+                                move |theme: &Theme, status: text_editor::Status| {
                                     let mut style = text_editor::default(theme, status);
                                     style.border = control_border(
                                         theme,
                                         status == text_editor::Status::Focused,
+                                        enhanced_focus,
                                     );
                                     style
                                 },
@@ -1418,15 +1462,23 @@ fn apply_path_selection(
     }
 }
 
-fn picker_style(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
+fn styled_picker(
+    theme: &Theme,
+    status: pick_list::Status,
+    enhanced_focus: bool,
+) -> pick_list::Style {
     let mut style = pick_list::default(theme, status);
-    style.border = control_border(theme, status != pick_list::Status::Active);
+    style.border = control_border(theme, status != pick_list::Status::Active, enhanced_focus);
     style
 }
 
-fn input_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
+fn styled_input(
+    theme: &Theme,
+    status: text_input::Status,
+    enhanced_focus: bool,
+) -> text_input::Style {
     let mut style = text_input::default(theme, status);
-    style.border = control_border(theme, status == text_input::Status::Focused);
+    style.border = control_border(theme, status == text_input::Status::Focused, enhanced_focus);
     style.placeholder = theme.extended_palette().background.base.text;
     style
 }
@@ -1775,6 +1827,15 @@ mod tests {
         assert!(!state.preferences.toolbar_visible);
         let _ = state.update(Message::Command(WorkbenchCommand::ToggleToolbar));
         assert!(state.preferences.toolbar_visible);
+    }
+
+    #[test]
+    fn enhanced_focus_outline_preference_updates_through_native_control_message() {
+        let mut state = state_for_test();
+        assert!(!state.preferences.enhanced_focus_outlines);
+        let _ = state.update(Message::EnhancedFocusOutlines(true));
+        assert!(state.preferences.enhanced_focus_outlines);
+        assert!(state.status.contains("enabled"));
     }
 
     #[test]
