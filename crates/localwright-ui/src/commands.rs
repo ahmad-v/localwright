@@ -165,7 +165,7 @@ mod tests {
             assert!(!descriptor.label.is_empty());
             assert!(CommandMenu::all().contains(&descriptor.menu));
         }
-        assert_eq!(commands.len(), 10);
+        assert_eq!(commands.len(), 12);
         assert!(COMMAND_REGISTRY.iter().any(|item| item.toolbar));
     }
 }
