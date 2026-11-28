@@ -59,6 +59,98 @@ pub struct TableWorkspace {
     pub schema: Vec<TableColumnInfo>,
     /// Typed values rendered by the shared paginated table.
     pub table: TableModel,
+    /// Optional dataset-level page information for query-backed workspaces.
+    pub dataset_page: Option<DatasetPage>,
+}
+
+/// Current page of a bounded application-side dataset query.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DatasetPage {
+    pub total_rows: usize,
+    pub offset: usize,
+    pub page_size: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DatasetPageAction {
+    First,
+    Previous,
+    Next,
+    Last,
+    PageSize(usize),
+}
+
+fn dataset_page_count(page: DatasetPage) -> usize {
+    if page.page_size == 0 {
+        1
+    } else {
+        page.total_rows.saturating_sub(1) / page.page_size + 1
+    }
+}
+
+fn dataset_page_offset(page: DatasetPage, action: DatasetPageAction) -> Option<(usize, usize)> {
+    if page.page_size == 0 || page.offset > page.total_rows {
+        return None;
+    }
+    let (size, offset) = match action {
+        DatasetPageAction::First => (page.page_size, 0),
+        DatasetPageAction::Previous => (page.page_size, page.offset.saturating_sub(page.page_size)),
+        DatasetPageAction::Next => (
+            page.page_size,
+            page.offset.saturating_add(page.page_size).min(
+                page.total_rows
+                    .saturating_sub(1)
+                    .checked_div(page.page_size)
+                    .unwrap_or(0)
+                    .saturating_mul(page.page_size),
+            ),
+        ),
+        DatasetPageAction::Last => (
+            page.page_size,
+            page.total_rows
+                .saturating_sub(1)
+                .checked_div(page.page_size)
+                .unwrap_or(0)
+                .saturating_mul(page.page_size),
+        ),
+        DatasetPageAction::PageSize(size) if (1..=100).contains(&size) => {
+            let offset = page.offset / size * size;
+            let last = page
+                .total_rows
+                .saturating_sub(1)
+                .checked_div(size)
+                .unwrap_or(0)
+                .saturating_mul(size);
+            (size, offset.min(last))
+        }
+        DatasetPageAction::PageSize(_) => return None,
+    };
+    Some((offset, size))
+}
+
+fn dataset_query_parameter(parameter: &str, offset: usize, page_size: usize) -> Result<String> {
+    if parameter.len() > 16 * 1024 || !(1..=100).contains(&page_size) {
+        return Err(Error::input("Invalid dataset page query"));
+    }
+    let mut query = if parameter.trim().is_empty() {
+        serde_json::Map::new()
+    } else if parameter.trim_start().starts_with('{') {
+        serde_json::from_str::<serde_json::Value>(parameter)?
+            .as_object()
+            .cloned()
+            .ok_or_else(|| Error::input("Dataset page query must be a JSON object"))?
+    } else {
+        let mut value = serde_json::Map::new();
+        value.insert("worksheet".into(), parameter.into());
+        value
+    };
+    query.insert("offset".into(), serde_json::json!(offset));
+    query.insert("limit".into(), serde_json::json!(page_size));
+    let result = serde_json::to_string(&query)?;
+    if result.len() > 16 * 1024 {
+        return Err(Error::input("Dataset page query exceeds 16 KiB"));
+    }
+    Ok(result)
 }
 
 /// Converts an application result payload into a native table workspace.
@@ -448,6 +540,7 @@ enum Message {
     WorkspaceTab(WorkspaceTab),
     TableFilter(String),
     TableAction(TableAction),
+    DatasetPage(DatasetPageAction),
     Menu(CommandMenu),
     Command(WorkbenchCommand),
 }
@@ -1024,6 +1117,36 @@ impl State {
                     }
                 }
             }
+            Message::DatasetPage(action) => {
+                if self.job.is_some() {
+                    return Task::none();
+                }
+                let prepared = {
+                    let project = self.active_project_mut();
+                    let Some(page) = project
+                        .table_workspace
+                        .as_ref()
+                        .and_then(|workspace| workspace.dataset_page)
+                    else {
+                        return Task::none();
+                    };
+                    let Some((offset, page_size)) = dataset_page_offset(page, action) else {
+                        return Task::none();
+                    };
+                    if offset == page.offset && page_size == page.page_size {
+                        return Task::none();
+                    }
+                    dataset_query_parameter(&project.parameter, offset, page_size).map(
+                        |parameter| {
+                            project.parameter = parameter;
+                        },
+                    )
+                };
+                match prepared {
+                    Ok(()) => return self.update(Message::Run),
+                    Err(error) => self.status = error.message,
+                }
+            }
             Message::Menu(menu) => {
                 self.active_menu = if self.active_menu == Some(menu) {
                     None
@@ -1371,23 +1494,67 @@ impl State {
                                     text(details).into()
                                 }))
                                 .spacing(2);
-                                column![
+                                let mut content = column![
                                     text(&workspace.title),
                                     text(&workspace.summary),
-                                    text("Filter loaded preview rows"),
-                                    text_input("Search values in the loaded table", &project.table_filter)
-                                        .on_input(Message::TableFilter)
-                                        .padding(8),
-                                    text(format!("{} rows match the filter", workspace.table.row_count())),
-                                    text("Schema and column metadata"),
-                                    scrollable(schema).height(Length::Fixed(120.0)),
-                                    paginated_table(
+                                ]
+                                .spacing(8);
+                                if let Some(page) = workspace.dataset_page.filter(|page| {
+                                    (1..=100).contains(&page.page_size)
+                                        && page.offset <= page.total_rows
+                                }) {
+                                    let pages = dataset_page_count(page);
+                                    let current = if page.total_rows == 0 {
+                                        1
+                                    } else {
+                                        page.offset / page.page_size + 1
+                                    };
+                                    let page_end = page
+                                        .offset
+                                        .saturating_add(page.page_size)
+                                        .min(page.total_rows);
+                                    content = content.push(
+                                        row![
+                                            button("First")
+                                                .on_press(Message::DatasetPage(DatasetPageAction::First)),
+                                            button("Previous")
+                                                .on_press(Message::DatasetPage(DatasetPageAction::Previous)),
+                                            text(format!(
+                                                "Page {current} of {pages} · rows {}–{} of {}",
+                                                if page.total_rows == 0 { 0 } else { page.offset + 1 },
+                                                page_end,
+                                                page.total_rows
+                                            )),
+                                            button("Next")
+                                                .on_press(Message::DatasetPage(DatasetPageAction::Next)),
+                                            button("Last")
+                                                .on_press(Message::DatasetPage(DatasetPageAction::Last)),
+                                            text("Rows per page"),
+                                            pick_list(
+                                                [25usize, 50, 100],
+                                                Some(page.page_size),
+                                                |size| Message::DatasetPage(DatasetPageAction::PageSize(size))
+                                            ),
+                                        ]
+                                        .spacing(8)
+                                        .align_y(iced::Alignment::Center),
+                                    );
+                                }
+                                content
+                                    .push(text("Filter loaded table rows"))
+                                    .push(
+                                        text_input("Search values in the loaded table", &project.table_filter)
+                                            .on_input(Message::TableFilter)
+                                            .padding(8),
+                                    )
+                                    .push(text(format!("{} rows match the loaded page filter", workspace.table.row_count())))
+                                    .push(text("Schema and column metadata"))
+                                    .push(scrollable(schema).height(Length::Fixed(120.0)))
+                                    .push(paginated_table(
                                         &workspace.table,
                                         &project.table_state,
                                         Message::TableAction
-                                    ),
-                                ]
-                                .spacing(8)
+                                    ))
                             }
                             None => column![
                                 text("No typed table is available for this result."),
@@ -1600,6 +1767,73 @@ fn run_workbench(
 mod tests {
     use super::*;
 
+    #[test]
+    fn dataset_paging_controls_preserve_query_and_bound_pages() {
+        let page = DatasetPage {
+            total_rows: 245,
+            offset: 100,
+            page_size: 50,
+        };
+        assert_eq!(dataset_page_count(page), 5);
+        assert_eq!(
+            dataset_page_offset(page, DatasetPageAction::First),
+            Some((0, 50))
+        );
+        assert_eq!(
+            dataset_page_offset(page, DatasetPageAction::Previous),
+            Some((50, 50))
+        );
+        assert_eq!(
+            dataset_page_offset(page, DatasetPageAction::Next),
+            Some((150, 50))
+        );
+        assert_eq!(
+            dataset_page_offset(page, DatasetPageAction::Last),
+            Some((200, 50))
+        );
+        assert_eq!(
+            dataset_page_offset(
+                DatasetPage {
+                    offset: 200,
+                    ..page
+                },
+                DatasetPageAction::Next
+            ),
+            Some((200, 50))
+        );
+        assert_eq!(
+            dataset_page_offset(
+                DatasetPage {
+                    total_rows: 0,
+                    offset: 0,
+                    page_size: 100,
+                },
+                DatasetPageAction::Last
+            ),
+            Some((0, 100))
+        );
+        assert_eq!(
+            dataset_page_offset(page, DatasetPageAction::PageSize(100)),
+            Some((100, 100))
+        );
+        assert!(dataset_page_offset(page, DatasetPageAction::PageSize(101)).is_none());
+
+        let parameter = dataset_query_parameter(
+            r#"{"filters":[{"column":"score","comparison":"gte","value":"2"}],"sort":{"column":"date","descending":true},"offset":0}"#,
+            150,
+            50,
+        )
+        .unwrap();
+        let query: serde_json::Value = serde_json::from_str(&parameter).unwrap();
+        assert_eq!(query["filters"][0]["column"], "score");
+        assert_eq!(query["sort"]["descending"], true);
+        assert_eq!(query["offset"], 150);
+        assert_eq!(query["limit"], 50);
+        let worksheet = dataset_query_parameter("Data", 25, 25).unwrap();
+        let worksheet: serde_json::Value = serde_json::from_str(&worksheet).unwrap();
+        assert_eq!(worksheet["worksheet"], "Data");
+    }
+
     fn sample_table_workspace(
         _payload: &str,
     ) -> std::result::Result<Option<TableWorkspace>, String> {
@@ -1629,6 +1863,7 @@ mod tests {
                 unit: None,
             }],
             table,
+            dataset_page: None,
         }))
     }
 
