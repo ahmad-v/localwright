@@ -1792,6 +1792,27 @@ mod tests {
             Some((200, 50))
         );
         assert_eq!(
+            dataset_page_offset(
+                DatasetPage {
+                    offset: 200,
+                    ..page
+                },
+                DatasetPageAction::Next
+            ),
+            Some((200, 50))
+        );
+        assert_eq!(
+            dataset_page_offset(
+                DatasetPage {
+                    total_rows: 0,
+                    offset: 0,
+                    page_size: 100,
+                },
+                DatasetPageAction::Last
+            ),
+            Some((0, 100))
+        );
+        assert_eq!(
             dataset_page_offset(page, DatasetPageAction::PageSize(100)),
             Some((100, 100))
         );
