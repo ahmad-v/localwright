@@ -82,12 +82,12 @@
     },
     {
       "operation": "typed-table-workspace",
-      "description": "Reusable paginated Iced table with typed stable sorting, null preservation, row selection, and case-insensitive filtering over bounded loaded previews; standalone example included.",
+      "description": "Reusable typed Iced table with loaded-row paging plus optional query-backed first/previous/next/last dataset navigation and 25/50/100 page sizes; preserves query filters and sorting while refreshing bounded pages.",
       "status": "implemented-unverified",
       "targets": [
         "x86_64-unknown-linux-gnu"
       ],
-      "fixture_status": "37 Localwright UI tests and table example compile passed locally; native interaction and consumer integration pending"
+      "fixture_status": "Regression tests cover page boundaries, page-size changes, query preservation, and worksheet query conversion; hosted Check/Integration pending; Data Studio consumer integration is in progress"
     }
   ]
 }
