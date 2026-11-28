@@ -654,7 +654,7 @@ impl State {
             f32::from(self.preferences.panel_ratio) / 100.0,
         );
         self.persist_project_tabs();
-        self.announce_project_selection(format!("Restored {} project tabs", count));
+        self.announce_project_selection(format!("Restored {count} project tabs"));
         Ok(count)
     }
 
